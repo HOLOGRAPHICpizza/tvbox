@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+
+import vlc
+import time
+import signal
+
+# do not create directly, use Channel.addEpisode
+class Episode(object):
+    filename: str
+    start_time: int
+
+    def __init__(self, filename: str, start_time: int, length: int):
+        self.filename = filename
+        self.start_time = start_time
+        self.length = length
+
+class Channel(object):
+    length: int
+    episodes: list[Episode]
+
+    def add_episode(self, filename: str, length: int):
+        if len(self.episodes) == 0:
+            start_time = 0
+        else:
+            start_time = self.episodes[-1].start_time + self.episodes[-1].length
+        self.episodes.append(Episode(filename, start_time, length))
+        self.length += length
+
+    def __init__(self, channel_file: str):
+        self.length = 0
+        self.episodes = []
+
+        # test
+        self.add_episode('testvids/i-dont-wana-die.webm', 345)
+        self.add_episode('testvids/pass-this-on.webm', 236)
+        self.add_episode('testvids/sugarcat.mp4', 180)
+
+class TV(object):
+    channels: list[Channel]
+    current_channel: int
+    vlc_instance: vlc.Instance
+    vlc_player: vlc.MediaPlayer
+
+    def add_channel(self, channel: Channel):
+        self.channels.append(channel)
+
+    def play_channel(self, channel: int):
+        self.vlc_player.set_media(self.vlc_instance.media_new(self.channels[channel].episodes[0].filename))
+
+        # player.set_fullscreen(True)
+
+        # Start playing the video
+        self.vlc_player.play()
+
+        # seek to positon based on current unix time. needs to be in ms. video must be playing.
+        self.vlc_player.set_time((int(time.time()) % self.channels[channel].episodes[0].length) * 1000)
+
+    def __init__(self):
+        self.channels = []
+        self.current_channel = 0
+
+        self.vlc_instance = vlc.Instance()
+        self.vlc_player = self.vlc_instance.media_player_new()
+
+class TermException(Exception):
+    pass
+
+def sigterm_handler(_signo, _stack_frame):
+    raise TermException
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
+    tv = TV()
+
+    # next channel
+    def sigusr1_handler(_signo, _stack_frame):
+        print(str(tv.current_channel))
+
+    signal.signal(signal.SIGUSR1, sigusr1_handler)
+
+    try:
+        tv.add_channel(Channel('blarg.channel'))
+
+        tv.play_channel(0)
+
+        # wait for signal
+        while True:
+            signal.pause()
+
+    except KeyboardInterrupt:
+        print('Caught SIGINT, tvbox exiting.', flush=True)
+
+    except TermException:
+        print('Caught SIGTERM, tvbox exiting.', flush=True)
+
+    finally:
+        # Stop playback and release resources
+        tv.vlc_player.stop()
+        tv.vlc_player.release()
