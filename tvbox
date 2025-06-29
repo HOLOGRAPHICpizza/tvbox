@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
+import asyncio
 import vlc
 import time
 import signal
+import threading
+import os
+import sys
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
@@ -17,6 +21,7 @@ class Episode(object):
 class Channel(object):
     length: int
     episodes: list[Episode]
+    current_episode_num: int
 
     def add_episode(self, filename: str, length: int):
         if len(self.episodes) == 0:
@@ -29,6 +34,7 @@ class Channel(object):
     def __init__(self, channel_file: str):
         self.length = 0
         self.episodes = []
+        self.current_episode_num = 0
 
         # test
         self.add_episode('testvids/i-dont-wana-die.webm', 345)
@@ -36,16 +42,30 @@ class Channel(object):
         self.add_episode('testvids/sugarcat.mp4', 180)
 
 class TV(object):
+    event_loop: asyncio.AbstractEventLoop
     channels: list[Channel]
-    current_channel: int
+    current_channel_num: int
     vlc_instance: vlc.Instance
     vlc_player: vlc.MediaPlayer
+
+    def current_channel(self):
+        return self.channels[self.current_channel_num]
 
     def add_channel(self, channel: Channel):
         self.channels.append(channel)
 
-    def play_channel(self, channel: int):
-        self.vlc_player.set_media(self.vlc_instance.media_new(self.channels[channel].episodes[0].filename))
+    def play_channel(self, channel_num: int):
+        assert threading.current_thread() == threading.main_thread()
+
+        self.current_channel_num = channel_num
+
+        episode_num = 2
+        self.current_channel().current_episode_num = episode_num
+        self.vlc_player.set_media(
+            self.vlc_instance.media_new(
+                self.channels[channel_num].episodes[episode_num].filename
+            )
+        )
 
         # player.set_fullscreen(True)
 
@@ -53,14 +73,40 @@ class TV(object):
         self.vlc_player.play()
 
         # seek to positon based on current unix time. needs to be in ms. video must be playing.
-        self.vlc_player.set_time((int(time.time()) % self.channels[channel].episodes[0].length) * 1000)
+        #self.vlc_player.set_time((int(time.time()) % self.channels[channel].episodes[2].length) * 1000)
+        self.vlc_player.set_time(175 * 1000)
 
-    def __init__(self):
+    def next_episode(self):
+        assert threading.current_thread() == threading.main_thread()
+
+        next_episode_num = self.current_channel().current_episode_num + 1
+        if next_episode_num == len(self.current_channel().episodes):
+            next_episode_num = 0
+
+        self.vlc_player.set_media(
+            self.vlc_instance.media_new(
+                self.current_channel().episodes[next_episode_num].filename
+            )
+        )
+        self.vlc_player.play()
+        self.current_channel().current_episode_num = next_episode_num
+
+    def __init__(self, event_loop: asyncio.AbstractEventLoop):
+        self.event_loop = event_loop
         self.channels = []
-        self.current_channel = 0
+        self.current_channel_num = 0
 
         self.vlc_instance = vlc.Instance()
         self.vlc_player = self.vlc_instance.media_player_new()
+
+def custom_exception_handler(loop, context):
+    # first, handle with default handler
+    loop.default_exception_handler(context)
+
+    #exception = context.get('exception')
+    print(context, flush=True)
+    loop.stop()
+    sys.exit(1)
 
 class TermException(Exception):
     pass
@@ -69,13 +115,26 @@ def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
 if __name__ == '__main__':
+    print('Main thread: ' + str(threading.get_ident()))
+
     signal.signal(signal.SIGTERM, sigterm_handler)
 
-    tv = TV()
+    _event_loop = asyncio.get_event_loop()
+    _event_loop.set_debug(False)
+    _event_loop.set_exception_handler(custom_exception_handler)
+
+    tv = TV(_event_loop)
 
     # next channel
     def sigusr1_handler(_signo, _stack_frame):
-        print(str(tv.current_channel))
+        print('sigusr1_handler thread: ' + str(threading.get_ident()))
+
+    # next episode
+    def media_end_handler(event: vlc.Event):
+        print('media_end_handler thread: ' + str(threading.get_ident()))
+
+        # python-vlc is not reentrant, we must control vlc from the main thread
+        tv.event_loop.call_soon_threadsafe(tv.next_episode)
 
     signal.signal(signal.SIGUSR1, sigusr1_handler)
 
@@ -84,9 +143,10 @@ if __name__ == '__main__':
 
         tv.play_channel(0)
 
-        # wait for signal
-        while True:
-            signal.pause()
+        event_manager = tv.vlc_player.event_manager()
+        event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
+
+        tv.event_loop.run_forever()
 
     except KeyboardInterrupt:
         print('Caught SIGINT, tvbox exiting.', flush=True)
@@ -98,3 +158,4 @@ if __name__ == '__main__':
         # Stop playback and release resources
         tv.vlc_player.stop()
         tv.vlc_player.release()
+        tv.event_loop.close()
