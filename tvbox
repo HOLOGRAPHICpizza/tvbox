@@ -5,13 +5,13 @@ import vlc
 import time
 import signal
 import threading
-import os
 import sys
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
     filename: str
     start_time: int
+    length: int
 
     def __init__(self, filename: str, start_time: int, length: int):
         self.filename = filename
@@ -58,12 +58,26 @@ class TV(object):
         assert threading.current_thread() == threading.main_thread()
 
         self.current_channel_num = channel_num
+        print('play channel ' + str(channel_num))
 
-        episode_num = 2
+        # find time in playlist as a whole
+        time_in_playlist = int(time.time()) % self.current_channel().length
+        print('playlist length ' + str(self.current_channel().length))
+        print('time in playlist ' + str(time_in_playlist))
+
+        # determine episode
+        episode_num = 0
+        for i in range(len(self.current_channel().episodes)):
+            e = self.current_channel().episodes[i]
+            if e.start_time <= time_in_playlist < (e.start_time + e.length):
+                episode_num = i
+                break
         self.current_channel().current_episode_num = episode_num
+        print('episode num ' + str(episode_num))
+        print('filename ' + self.current_channel().episodes[episode_num].filename)
         self.vlc_player.set_media(
             self.vlc_instance.media_new(
-                self.channels[channel_num].episodes[episode_num].filename
+                self.current_channel().episodes[episode_num].filename
             )
         )
 
@@ -72,9 +86,11 @@ class TV(object):
         # Start playing the video
         self.vlc_player.play()
 
-        # seek to positon based on current unix time. needs to be in ms. video must be playing.
-        #self.vlc_player.set_time((int(time.time()) % self.channels[channel].episodes[2].length) * 1000)
-        self.vlc_player.set_time(175 * 1000)
+        # find time in episode
+        time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
+        self.vlc_player.set_time(time_in_episode * 1000)
+        print('episode length ' + str(self.current_channel().episodes[episode_num].length))
+        print('time in episode ' + str(time_in_episode))
 
     def next_episode(self):
         assert threading.current_thread() == threading.main_thread()
