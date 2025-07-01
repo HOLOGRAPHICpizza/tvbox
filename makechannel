@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+
+# tvbox makechannel
+# Jason D. Ozubko, 2012,2018 (jdozubko@gmail.com)
+# Michael Craft 2025
+
+# depends on ffprobe
+
+import os
+import subprocess
+import sys
+
+class FFProbeException(Exception):
+    pass
+
+# function... returns the duration HH:MM:SS of a video file
+def get_length(filename):
+    # uses ffprobe to get info about the video file
+    result = subprocess.run(['/usr/bin/ffprobe', filename],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            check=True)
+
+    # get the location of the "Duration: " phrase
+    loc = result.stdout.find('Duration: ')
+
+    # assuming we find the location of that phrase...
+    if loc != -1:
+        # cut out everything before and everything more than 10 characters later
+        duration_str = result.stdout[loc + 10:loc + 18]
+        fields = duration_str.split(':')
+        return str((int(fields[0]) * 60 * 60)
+                 + (int(fields[1]) * 60)
+                 + (int(fields[2])))
+    else:
+        raise FFProbeException()
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('Usage: ' + sys.argv[0] + ' video_file_dir', file=sys.stderr)
+        sys.exit(1)
+
+    # change the search_path to be the location of your media files
+    search_path = sys.argv[1]
+
+    # main code... walk through the subfolders looking for movie files
+    for dirpath, dirnames, files in os.walk(search_path):
+        for name in files:
+            # EDIT THE LINE BELOW TO CHANGE THE TYPE OF MEDIA FILES YOU WANT TO FIND
+            lowname = name.lower()
+            if (lowname.endswith(".avi")
+                    or lowname.endswith(".mpg")
+                    or lowname.endswith(".mpeg")
+                    or lowname.endswith(".asf")
+                    or lowname.endswith(".wmv")
+                    or lowname.endswith(".mp4")
+                    or lowname.endswith(".mov")
+                    or lowname.endswith(".3gp")
+                    or lowname.endswith(".ogm")
+                    or lowname.endswith(".mkv")
+                    or lowname.endswith(".webm")):
+
+                fn = os.path.join(dirpath, name)
+
+                # figure out the length, output it, then save it
+                try:
+                    fn_len = get_length(fn)
+                    print(fn)
+                    print(fn_len)
+                except subprocess.CalledProcessError as e:
+                    print(e.stdout, file=sys.stderr)
+                except FFProbeException as e:
+                    print('Could not get duration of ' + fn, file=sys.stderr)
