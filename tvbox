@@ -62,7 +62,7 @@ class TV(object):
 
         print('playing channel ' + str(self.current_channel_num)
               + ' episode ' + str(self.current_channel().current_episode_num)
-              + ' filename ' + filename)
+              + ' ' + filename)
 
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
@@ -99,7 +99,9 @@ class TV(object):
 
         # find time in episode
         time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
-        print('seeking to ' + str(time_in_episode))
+        print('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
+              + format(time_in_episode / self.current_channel().episodes[episode_num].length, ".0%")
+              + ' - pos in channel ' + format(time_in_playlist / self.current_channel().length, ".0%"))
         self.vlc_player.set_time(time_in_episode * 1000)
         #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
         #print('time in episode ' + str(time_in_episode))
