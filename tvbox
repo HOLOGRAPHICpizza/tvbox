@@ -36,10 +36,13 @@ class Channel(object):
         self.episodes = []
         self.current_episode_num = 0
 
-        # test
-        self.add_episode('testvids/i-dont-wana-die.webm', 345)
-        self.add_episode('testvids/pass-this-on.webm', 236)
-        self.add_episode('testvids/sugarcat.mp4', 180)
+        try:
+            with open(channel_file, 'r') as file:
+                    for line in file:
+                        fields = line.split('|')
+                        self.add_episode(fields[0], int(fields[1]))
+        finally:
+            file.close()
 
 class TV(object):
     event_loop: asyncio.AbstractEventLoop
@@ -54,16 +57,30 @@ class TV(object):
     def add_channel(self, channel: Channel):
         self.channels.append(channel)
 
+    def play_file(self, filename: str):
+        assert threading.current_thread() == threading.main_thread()
+
+        print('playing channel ' + str(self.current_channel_num)
+              + ' episode ' + str(self.current_channel().current_episode_num)
+              + ' filename ' + filename)
+
+        self.vlc_player.stop()
+        if self.vlc_media_instance is not None:
+            self.vlc_media_instance.release()
+        self.vlc_media_instance = self.vlc_instance.media_new(filename)
+        self.vlc_player.set_media(self.vlc_media_instance)
+        self.vlc_player.play()
+
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
 
         self.current_channel_num = channel_num
-        print('play channel ' + str(channel_num))
+        #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
         time_in_playlist = int(time.time()) % self.current_channel().length
-        print('playlist length ' + str(self.current_channel().length))
-        print('time in playlist ' + str(time_in_playlist))
+        #print('playlist length ' + str(self.current_channel().length))
+        #print('time in playlist ' + str(time_in_playlist))
 
         # determine episode
         episode_num = 0
@@ -73,24 +90,19 @@ class TV(object):
                 episode_num = i
                 break
         self.current_channel().current_episode_num = episode_num
-        print('episode num ' + str(episode_num))
-        print('filename ' + self.current_channel().episodes[episode_num].filename)
-        self.vlc_player.set_media(
-            self.vlc_instance.media_new(
-                self.current_channel().episodes[episode_num].filename
-            )
-        )
+        #print('episode num ' + str(episode_num))
+        #print('filename ' + self.current_channel().episodes[episode_num].filename)
+
+        self.play_file(self.current_channel().episodes[episode_num].filename)
 
         # player.set_fullscreen(True)
 
-        # Start playing the video
-        self.vlc_player.play()
-
         # find time in episode
         time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
+        print('seeking to ' + str(time_in_episode))
         self.vlc_player.set_time(time_in_episode * 1000)
-        print('episode length ' + str(self.current_channel().episodes[episode_num].length))
-        print('time in episode ' + str(time_in_episode))
+        #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
+        #print('time in episode ' + str(time_in_episode))
 
     def next_episode(self):
         assert threading.current_thread() == threading.main_thread()
@@ -98,14 +110,9 @@ class TV(object):
         next_episode_num = self.current_channel().current_episode_num + 1
         if next_episode_num == len(self.current_channel().episodes):
             next_episode_num = 0
-
-        self.vlc_player.set_media(
-            self.vlc_instance.media_new(
-                self.current_channel().episodes[next_episode_num].filename
-            )
-        )
-        self.vlc_player.play()
         self.current_channel().current_episode_num = next_episode_num
+
+        self.play_file(self.current_channel().episodes[next_episode_num].filename)
 
     def __init__(self, event_loop: asyncio.AbstractEventLoop):
         self.event_loop = event_loop
@@ -114,6 +121,7 @@ class TV(object):
 
         self.vlc_instance = vlc.Instance()
         self.vlc_player = self.vlc_instance.media_player_new()
+        self.vlc_media_instance = None
 
 def custom_exception_handler(loop, context):
     # first, handle with default handler
@@ -131,7 +139,8 @@ def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
 if __name__ == '__main__':
-    print('Main thread: ' + str(threading.get_ident()))
+    #print('Main thread: ' + str(threading.get_ident()))
+    print('tvbox started')
 
     signal.signal(signal.SIGTERM, sigterm_handler)
 
@@ -147,7 +156,7 @@ if __name__ == '__main__':
 
     # next episode
     def media_end_handler(event: vlc.Event):
-        print('media_end_handler thread: ' + str(threading.get_ident()))
+        #print('media_end_handler thread: ' + str(threading.get_ident()))
 
         # python-vlc is not reentrant, we must control vlc from the main thread
         tv.event_loop.call_soon_threadsafe(tv.next_episode)
@@ -155,7 +164,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGUSR1, sigusr1_handler)
 
     try:
-        tv.add_channel(Channel('blarg.channel'))
+        tv.add_channel(Channel('testvids.channel'))
 
         tv.play_channel(0)
 
@@ -173,5 +182,6 @@ if __name__ == '__main__':
     finally:
         # Stop playback and release resources
         tv.vlc_player.stop()
+        tv.vlc_media_instance.release()
         tv.vlc_player.release()
         tv.event_loop.close()

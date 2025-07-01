@@ -15,6 +15,9 @@ class FFProbeException(Exception):
 
 # function... returns the duration HH:MM:SS of a video file
 def get_length(filename):
+    if '|' in filename:
+        raise FFProbeException()
+
     # uses ffprobe to get info about the video file
     result = subprocess.run(['/usr/bin/ffprobe', filename],
                             stdout=subprocess.PIPE,
@@ -66,8 +69,7 @@ if __name__ == '__main__':
                 # figure out the length, output it, then save it
                 try:
                     fn_len = get_length(fn)
-                    print(fn)
-                    print(fn_len)
+                    print(fn + '|' + fn_len)
                 except subprocess.CalledProcessError as e:
                     print(e.stdout, file=sys.stderr)
                 except FFProbeException as e:
