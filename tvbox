@@ -8,6 +8,8 @@ import threading
 import sys
 import os
 
+LAST_CHANNEL_FILE = os.path.expanduser("~/.tvbox")
+
 # do not create directly, use Channel.addEpisode
 class Episode(object):
     filename: str
@@ -86,6 +88,7 @@ class TV(object):
         assert threading.current_thread() == threading.main_thread()
 
         self.current_channel_num = channel_num
+        write_last_channel(channel_num)
         #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
@@ -142,6 +145,24 @@ class TermException(Exception):
 def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
+def read_last_channel():
+    try:
+        with open(LAST_CHANNEL_FILE, 'r') as file:
+            channel = int(file.read())
+            return channel
+    except (OSError, ValueError):
+        print('Could not read ' + LAST_CHANNEL_FILE)
+
+    # default to channel 1
+    return 1
+
+def write_last_channel(channel: int):
+    try:
+        with open(LAST_CHANNEL_FILE, 'w') as file:
+            file.write(str(channel))
+    except OSError:
+        print('Could not write ' + LAST_CHANNEL_FILE)
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr)
@@ -181,8 +202,7 @@ if __name__ == '__main__':
             print('No .channel files found.', file=sys.stderr)
             sys.exit(1)
 
-        #TODO: load up last watched channel
-        tv.play_channel(1)
+        tv.play_channel(read_last_channel())
 
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)

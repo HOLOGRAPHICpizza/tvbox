@@ -43,7 +43,7 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: ' + sys.argv[0] + ' video_file_dir', file=sys.stderr)
         print('.channel files are like m3u files, the paths are interpreted relative to the location of the file.', file=sys.stderr)
-        print('Specify a relative path or absolute path to generate the respective path types.')
+        print('Specify a relative path or absolute path to generate the respective path types.', file=sys.stderr)
         sys.exit(1)
 
     # change the search_path to be the location of your media files
