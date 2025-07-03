@@ -167,7 +167,7 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr)
         sys.exit(1)
-    channel_file_dir = sys.argv[1]
+    channel_file_dir = os.path.abspath(sys.argv[1])
 
     #print('Main thread: ' + str(threading.get_ident()))
     print('tvbox started')
@@ -182,7 +182,22 @@ if __name__ == '__main__':
 
     # next channel
     def sigusr1_handler(_signo, _stack_frame):
-        print('sigusr1_handler thread: ' + str(threading.get_ident()))
+        #print('sigusr1_handler thread: ' + str(threading.get_ident()))
+        channel_num = tv.current_channel_num + 1
+        # tv.channels has a dummy channel, i.e. indexed from 1
+        if channel_num == len(tv.channels):
+            # loop around
+            channel_num = 1
+        tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+
+    # previous channel
+    def sigusr2_handler(_signo, _stack_frame):
+        channel_num = tv.current_channel_num - 1
+        # tv.channels has a dummy channel, i.e. indexed from 1
+        if channel_num == 0:
+            # loop around
+            channel_num = len(tv.channels) - 1
+        tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
     # next episode
     def media_end_handler(event: vlc.Event):
@@ -192,6 +207,7 @@ if __name__ == '__main__':
         tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
 
     signal.signal(signal.SIGUSR1, sigusr1_handler)
+    signal.signal(signal.SIGUSR2, sigusr2_handler)
 
     try:
         for dirpath, dirnames, files in os.walk(channel_file_dir):

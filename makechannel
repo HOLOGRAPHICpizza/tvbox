@@ -6,6 +6,8 @@
 
 # depends on ffprobe
 
+#TODO: somehow get this shit to output in a good, correct order
+
 import os
 import subprocess
 import sys
