@@ -6,6 +6,7 @@ import time
 import signal
 import threading
 import sys
+import os
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
@@ -36,13 +37,22 @@ class Channel(object):
         self.episodes = []
         self.current_episode_num = 0
 
-        try:
-            with open(channel_file, 'r') as file:
-                    for line in file:
-                        fields = line.split('|')
-                        self.add_episode(fields[0], int(fields[1]))
-        finally:
-            file.close()
+        # we want shit indexed starting at 1
+        self.add_episode('INVALID PLACEHOLDER EPISODE', 0)
+        if channel_file == 'INVALID PLACEHOLDER CHANNEL':
+            return
+
+        print('reading ' + channel_file)
+
+        # change working directory to location of channel file
+        channel_file = os.path.abspath(channel_file)
+        os.chdir(os.path.dirname(channel_file))
+
+        with open(channel_file, 'r') as file:
+                for line in file:
+                    fields = line.split('|')
+                    abs_path = os.path.abspath(fields[0])
+                    self.add_episode(abs_path, int(fields[1]))
 
 class TV(object):
     event_loop: asyncio.AbstractEventLoop
@@ -67,6 +77,7 @@ class TV(object):
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
+        #TODO: error handling if filename cannot be read
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
@@ -83,7 +94,7 @@ class TV(object):
         #print('time in playlist ' + str(time_in_playlist))
 
         # determine episode
-        episode_num = 0
+        episode_num = 1
         for i in range(len(self.current_channel().episodes)):
             e = self.current_channel().episodes[i]
             if e.start_time <= time_in_playlist < (e.start_time + e.length):
@@ -106,20 +117,11 @@ class TV(object):
         #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
         #print('time in episode ' + str(time_in_episode))
 
-    def next_episode(self):
-        assert threading.current_thread() == threading.main_thread()
-
-        next_episode_num = self.current_channel().current_episode_num + 1
-        if next_episode_num == len(self.current_channel().episodes):
-            next_episode_num = 0
-        self.current_channel().current_episode_num = next_episode_num
-
-        self.play_file(self.current_channel().episodes[next_episode_num].filename)
-
     def __init__(self, event_loop: asyncio.AbstractEventLoop):
         self.event_loop = event_loop
-        self.channels = []
-        self.current_channel_num = 0
+        # we want the first channel to be index 1
+        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL')]
+        self.current_channel_num = 1
 
         self.vlc_instance = vlc.Instance()
         self.vlc_player = self.vlc_instance.media_player_new()
@@ -141,6 +143,11 @@ def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr)
+        sys.exit(1)
+    channel_file_dir = sys.argv[1]
+
     #print('Main thread: ' + str(threading.get_ident()))
     print('tvbox started')
 
@@ -161,14 +168,21 @@ if __name__ == '__main__':
         #print('media_end_handler thread: ' + str(threading.get_ident()))
 
         # python-vlc is not reentrant, we must control vlc from the main thread
-        tv.event_loop.call_soon_threadsafe(tv.next_episode)
+        tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
 
     signal.signal(signal.SIGUSR1, sigusr1_handler)
 
     try:
-        tv.add_channel(Channel('testvids.channel'))
+        for dirpath, dirnames, files in os.walk(channel_file_dir):
+            for name in files:
+                if name.endswith('.channel'):
+                    tv.add_channel(Channel(os.path.join(dirpath, name)))
+        if len(tv.channels) < 2:
+            print('No .channel files found.', file=sys.stderr)
+            sys.exit(1)
 
-        tv.play_channel(0)
+        #TODO: load up last watched channel
+        tv.play_channel(1)
 
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
@@ -184,6 +198,7 @@ if __name__ == '__main__':
     finally:
         # Stop playback and release resources
         tv.vlc_player.stop()
-        tv.vlc_media_instance.release()
+        if tv.vlc_media_instance is not None:
+            tv.vlc_media_instance.release()
         tv.vlc_player.release()
         tv.event_loop.close()
