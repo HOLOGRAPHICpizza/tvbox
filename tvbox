@@ -8,6 +8,7 @@ import threading
 import sys
 import os
 import gpiozero
+import lirc
 
 LAST_CHANNEL_FILE = os.path.expanduser("~/.tvbox")
 
@@ -77,6 +78,7 @@ class TV(object):
               + ' episode ' + str(self.current_channel().current_episode_num)
               + ' ' + filename)
 
+        self.vlc_player.set_fullscreen(False)
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
@@ -88,6 +90,13 @@ class TV(object):
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
+
+        #TODO: make this a cmd line arg
+        #self.vlc_player.set_fullscreen(True)
+
+        # disable subtitles
+        #TODO: this will not freaking work, maybe try adding an empty sub track?
+        print('video_set_spu: ' + str(self.vlc_player.video_set_spu(-1)))
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -113,11 +122,6 @@ class TV(object):
         #print('filename ' + self.current_channel().episodes[episode_num].filename)
 
         self.play_file(self.current_channel().episodes[episode_num].filename)
-
-        #self.vlc_player.set_fullscreen(True)
-
-        # disable subtitles
-        self.vlc_player.video_set_spu(-1)
 
         # find time in episode
         time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
@@ -219,6 +223,23 @@ if __name__ == '__main__':
         # python-vlc is not reentrant, we must control vlc from the main thread
         tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
 
+    def ir_loop():
+        #get IR command
+        #keypress format = (hexcode, repeat_num, command_key, remote_id)
+        with lirc.RawConnection() as conn:
+            while True:
+                keypress = conn.readline() # blocking read
+                sequence = keypress.split()[1]
+                command = keypress.split()[2]
+
+                #ignore command repeats
+                if sequence == "00":
+                    if command == 'KEY_CHANNELUP':
+                        next_channel()
+                    elif command == 'KEY_CHANNELDOWN':
+                        prev_channel()
+
+
     signal.signal(signal.SIGUSR1, sigusr1_handler)
     signal.signal(signal.SIGUSR2, sigusr2_handler)
 
@@ -242,6 +263,11 @@ if __name__ == '__main__':
 
         prev_button = gpiozero.Button('GPIO27', pull_up=False, bounce_time=0.05)
         prev_button.when_pressed = prev_channel
+
+        # IR remote
+        ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
+        ir_thread.daemon = True   # Kills the thread when the program exits
+        ir_thread.start()
 
         tv.event_loop.run_forever()
 
