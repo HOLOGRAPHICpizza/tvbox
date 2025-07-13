@@ -66,6 +66,7 @@ if __name__ == '__main__':
                     or lowname.endswith(".3gp")
                     or lowname.endswith(".ogm")
                     or lowname.endswith(".mkv")
+                    or lowname.endswith(".m4v")
                     or lowname.endswith(".webm")):
 
                 fn = os.path.join(dirpath, name)
