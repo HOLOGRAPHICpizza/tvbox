@@ -7,6 +7,7 @@ import signal
 import threading
 import sys
 import os
+import gpiozero
 
 LAST_CHANNEL_FILE = os.path.expanduser("~/.tvbox")
 
@@ -79,7 +80,11 @@ class TV(object):
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
+        #TODO: maybe some kind of delay or ready check to prevent crashing from switching too fast
+        # actually not sure if it is still crashing from this
+
         #TODO: error handling if filename cannot be read
+        # and error handling in general, it seems like some videos crash it
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
@@ -109,7 +114,10 @@ class TV(object):
 
         self.play_file(self.current_channel().episodes[episode_num].filename)
 
-        # player.set_fullscreen(True)
+        #self.vlc_player.set_fullscreen(True)
+
+        # disable subtitles
+        self.vlc_player.video_set_spu(-1)
 
         # find time in episode
         time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
@@ -180,9 +188,8 @@ if __name__ == '__main__':
 
     tv = TV(_event_loop)
 
-    # next channel
-    def sigusr1_handler(_signo, _stack_frame):
-        #print('sigusr1_handler thread: ' + str(threading.get_ident()))
+    def next_channel():
+        print('next channel')
         channel_num = tv.current_channel_num + 1
         # tv.channels has a dummy channel, i.e. indexed from 1
         if channel_num == len(tv.channels):
@@ -190,14 +197,20 @@ if __name__ == '__main__':
             channel_num = 1
         tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
-    # previous channel
-    def sigusr2_handler(_signo, _stack_frame):
+    def prev_channel():
+        print('previous channel')
         channel_num = tv.current_channel_num - 1
         # tv.channels has a dummy channel, i.e. indexed from 1
         if channel_num == 0:
             # loop around
             channel_num = len(tv.channels) - 1
         tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+
+    def sigusr1_handler(_signo, _stack_frame):
+        next_channel()
+
+    def sigusr2_handler(_signo, _stack_frame):
+        prev_channel()
 
     # next episode
     def media_end_handler(event: vlc.Event):
@@ -222,6 +235,13 @@ if __name__ == '__main__':
 
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
+
+        # buttons
+        next_button = gpiozero.Button('GPIO17', pull_up=False, bounce_time=0.05)
+        next_button.when_pressed = next_channel
+
+        prev_button = gpiozero.Button('GPIO27', pull_up=False, bounce_time=0.05)
+        prev_button.when_pressed = prev_channel
 
         tv.event_loop.run_forever()
 

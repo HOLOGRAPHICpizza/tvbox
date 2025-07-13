@@ -1,0 +1,8 @@
+make it load channels in order
+
+changing channels too fast causes crash - OR DOES IT?
+
+mythbusters dropping a car from 150ft causes crash
+switching from orville S01E01 to TNG S06E20 crashed with too low audio sample freq
+scare tactics video buffer deadlock prevented error parsing frame header almost crashed
+switching from black mirror S06E01 to orville S03E05 crashed with pthread_mutex_lock_full
