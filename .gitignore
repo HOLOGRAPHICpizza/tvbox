@@ -1,3 +1,4 @@
 .idea
 last-channel.txt
 *.log
+/test/

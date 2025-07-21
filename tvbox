@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 
-#TODO: add splash screen
-
+feh -F ~/tvbox/tvbox-splash.png &
 # this is to give it a chance to sync the time via NTP. ideally it should have an RTC.
 sleep 20
+killall feh
 
 wmctrl -r 'bash' -b add,maximized_vert,maximized_horz
 
