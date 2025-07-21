@@ -1,7 +1,9 @@
 #!/usr/bin/bash
 
+#TODO: add splash screen
+
 # this is to give it a chance to sync the time via NTP. ideally it should have an RTC.
-sleep 10
+sleep 20
 
 wmctrl -r 'bash' -b add,maximized_vert,maximized_horz
 
