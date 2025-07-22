@@ -1,0 +1,18 @@
+begin
+	prog = irexec
+	button = KEY_POWER
+	config = sudo halt
+end
+
+begin
+	prog = irexec
+	button = KEY_0
+	config = killall python3
+end
+
+begin
+	prog = irexec
+	button = KEY_9
+	config = killall -9 python3
+end
+

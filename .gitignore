@@ -2,3 +2,4 @@
 last-channel.txt
 *.log
 /test/
+/lirc*/
