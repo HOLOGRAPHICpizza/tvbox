@@ -6,7 +6,8 @@
 
 # depends on ffprobe
 
-#TODO: somehow get this shit to output in a good, correct order
+# somehow get this shit to output in a good, correct order
+# actually just pipe it into sort
 
 import os
 import subprocess
