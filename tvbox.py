@@ -109,11 +109,8 @@ class TV(object):
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
-        # maybe some kind of delay or ready check to prevent crashing from switching too fast
-        # actually not sure if it is still crashing from this
 
-        #TODO: error handling if filename cannot be read
-        # and error handling in general, it seems like some videos crash it
+        #TODO: error handling
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
@@ -291,6 +288,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGUSR2, sigusr2_handler)
 
     try:
+        #TODO: load channels in order
         for dirpath, dirnames, files in os.walk(channel_file_dir):
             for name in files:
                 if name.endswith('.channel'):
