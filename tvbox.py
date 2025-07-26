@@ -109,7 +109,7 @@ class TV(object):
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
-        #TODO: maybe some kind of delay or ready check to prevent crashing from switching too fast
+        # maybe some kind of delay or ready check to prevent crashing from switching too fast
         # actually not sure if it is still crashing from this
 
         #TODO: error handling if filename cannot be read
@@ -120,10 +120,6 @@ class TV(object):
 
         #TODO: make this a cmd line arg
         self.vlc_player.set_fullscreen(True)
-
-        # disable subtitles
-        #TODO: this will not freaking work, maybe try adding an empty sub track?
-        print('video_set_spu: ' + str(self.vlc_player.video_set_spu(-1)), flush=True)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -165,7 +161,7 @@ class TV(object):
         self.channels = [Channel('INVALID PLACEHOLDER CHANNEL')]
         self.current_channel_num = 1
 
-        self.vlc_instance = vlc.Instance()
+        self.vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
         self.vlc_player = self.vlc_instance.media_player_new()
         self.vlc_media_instance = None
 
