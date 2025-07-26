@@ -10,6 +10,35 @@ import lirc
 
 LAST_CHANNEL_FILE = os.path.expanduser("~/.tvbox")
 
+SEGMENT_PINS = (
+    gpiozero.LED('GPIO26'),       # A
+    gpiozero.LED('GPIO19'),       # B
+    gpiozero.LED('GPIO13'),       # C
+    gpiozero.LED('GPIO6'),        # D
+    gpiozero.LED('GPIO5'),        # E
+    gpiozero.LED('GPIO11'),       # F
+    gpiozero.LED('GPIO9')         # G
+)
+
+DIGIT_PINS = (
+    gpiozero.LED('GPIO20', active_high=False), # DIGIT 1
+    gpiozero.LED('GPIO21', active_high=False)  # DIGIT 2
+)
+
+DIGIT_SEGMENTS = {
+    ' ':(False,False,False,False,False,False,False),
+    '0':(True,True,True,True,True,True,False),
+    '1':(False,True,True,False,False,False,False),
+    '2':(True,True,False,True,True,False,True),
+    '3':(True,True,True,True,False,False,True),
+    '4':(False,True,True,False,False,True,True),
+    '5':(True,False,True,True,False,True,True),
+    '6':(True,False,True,True,True,True,True),
+    '7':(True,True,True,False,False,False,False),
+    '8':(True,True,True,True,True,True,True),
+    '9':(True,True,True,True,False,True,True)
+}
+
 # do not create directly, use Channel.addEpisode
 class Episode(object):
     filename: str
@@ -173,6 +202,13 @@ def write_last_channel(channel: int):
     except OSError:
         print('Could not write ' + LAST_CHANNEL_FILE, flush=True)
 
+def set_segments(numeral: str):
+    for segment in range(7):
+        if DIGIT_SEGMENTS[numeral][segment]:
+            SEGMENT_PINS[segment].on()
+        else:
+            SEGMENT_PINS[segment].off()
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr, flush=True)
@@ -237,6 +273,23 @@ if __name__ == '__main__':
                     elif command == 'KEY_CHANNELDOWN':
                         prev_channel()
 
+    def seven_seg_loop():
+        first_digit = True
+        while True:
+            num_str = str(tv.current_channel_num).rjust(2, ' ')
+            #num_str = str(int(time.time()))[-2:]
+
+            if first_digit:
+                DIGIT_PINS[1].off()
+                set_segments(num_str[-2])
+                DIGIT_PINS[0].on()
+            else:
+                DIGIT_PINS[0].off()
+                set_segments(num_str[-1])
+                DIGIT_PINS[1].on()
+
+            first_digit = not first_digit
+            time.sleep(0.005)
 
     signal.signal(signal.SIGUSR1, sigusr1_handler)
     signal.signal(signal.SIGUSR2, sigusr2_handler)
@@ -266,6 +319,11 @@ if __name__ == '__main__':
         ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
         ir_thread.daemon = True   # Kills the thread when the program exits
         ir_thread.start()
+
+        # 7-segment display
+        seven_seg_thread = threading.Thread(group=None, target=seven_seg_loop, name='seven_seg_thread')
+        seven_seg_thread.daemon = True
+        seven_seg_thread.start()
 
         tv.event_loop.run_forever()
 
