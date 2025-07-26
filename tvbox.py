@@ -290,6 +290,7 @@ if __name__ == '__main__':
     try:
         #TODO: load channels in order
         for dirpath, dirnames, files in os.walk(channel_file_dir):
+            files.sort()
             for name in files:
                 if name.endswith('.channel'):
                     tv.add_channel(Channel(os.path.join(dirpath, name)))
