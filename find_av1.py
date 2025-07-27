@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-MEDIA_DIR = '/home/michael/tvbox_media'
+MEDIA_DIR = '/home/michael/tvbox_media/Mythbusters'
 
 for dirpath, dirnames, files in os.walk(MEDIA_DIR):
     for name in files:
