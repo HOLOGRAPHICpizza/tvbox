@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+
+# this is the "0th" file in the tvbox launch chain
+
+killall python3
+killall feh
+killall lxterminal
+killall tvbox
+killall tvboxlaunchchain2
+sleep 1
+killall -9 python3
+killall -9 feh
+killall -9 lxterminal
+killall -9 tvbox
+killall -9 tvboxlaunchchain2
+
+~/tvbox/tvbox --no-delay
+

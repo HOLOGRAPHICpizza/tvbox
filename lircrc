@@ -12,6 +12,18 @@ end
 
 begin
 	prog = irexec
+	button = KEY_1
+	config = systemd-run --user /home/michael/tvbox/irtvboxlaunch
+end
+
+begin
+	prog = irexec
+	button = KEY_2
+	config = tail -n 100 /home/michael/tvbox/tvbox.log > /home/michael/tvbox/log_dumps/`date +%s`.log; notify-send log dumped
+end
+
+begin
+	prog = irexec
 	button = KEY_9
 	config = killall -9 python3
 end

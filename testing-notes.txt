@@ -1,6 +1,5 @@
-make it load channels in order
-
-changing channels too fast causes crash - OR DOES IT? - I think i fixed it with X11
+get log dump notification to show up on top
+make seven_seg_thread exit cleanly
 
 mythbusters dropping a car from 150ft causes crash
 switching from orville S01E01 to TNG S06E20 crashed with too low audio sample freq

@@ -1,0 +1,20 @@
+#!/usr/bin/bash
+
+# this is the 2nd file in the tvbox launch chain
+# ran by tvbox
+# runs tvbox.py
+
+# maximize window
+sleep 1
+wmctrl -r 'tvboxterm' -b add,maximized_vert,maximized_horz
+
+# launch tvbox.py
+python3 ~/tvbox/tvbox.py ~/tvbox_media/channels 2>&1 | tee ~/tvbox/tvbox.log
+
+# keep the terminal open
+if ps -ef | grep -v grep | grep "bash -i"; then # is bash -i already running?
+	: # no-op
+else
+	bash -i
+fi
+
