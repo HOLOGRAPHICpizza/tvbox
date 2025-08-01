@@ -5,7 +5,7 @@
 # runs tvbox.py
 
 # maximize window
-sleep 1
+sleep 2
 wmctrl -r 'tvboxterm' -b add,maximized_vert,maximized_horz
 
 # launch tvbox.py

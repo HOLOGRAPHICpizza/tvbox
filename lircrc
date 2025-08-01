@@ -19,7 +19,7 @@ end
 begin
 	prog = irexec
 	button = KEY_2
-	config = tail -n 100 /home/michael/tvbox/tvbox.log > /home/michael/tvbox/log_dumps/`date +%s`.log; notify-send log dumped
+	config = tail -n 100 /home/michael/tvbox/tvbox.log > /home/michael/tvbox/log_dumps/`date +%s`.log; logger tvbox log dumped
 end
 
 begin

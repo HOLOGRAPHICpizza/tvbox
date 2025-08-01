@@ -19,7 +19,7 @@ fi
 if [ "$1" != "--no-delay" ]; then
 	feh -YF ~/tvbox/tvbox-splash.png &
 	# this is to give it a chance to sync the time via NTP. ideally it should have an RTC.
-	sleep 19
+	sleep 18
 	killall feh
 fi
 
