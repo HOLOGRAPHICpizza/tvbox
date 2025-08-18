@@ -21,8 +21,8 @@ SEGMENT_PINS = (
 )
 
 DIGIT_PINS = (
-    gpiozero.LED('GPIO20', active_high=False), # DIGIT 1
-    gpiozero.LED('GPIO21', active_high=False)  # DIGIT 2
+    gpiozero.LED('GPIO20'), # DIGIT 1
+    gpiozero.LED('GPIO21')  # DIGIT 2
 )
 
 DIGIT_SEGMENTS = {
@@ -270,7 +270,6 @@ if __name__ == '__main__':
         first_digit = True
         while True:
             num_str = str(tv.current_channel_num).rjust(2, ' ')
-            #num_str = str(int(time.time()))[-2:]
 
             if first_digit:
                 DIGIT_PINS[1].off()
@@ -304,10 +303,10 @@ if __name__ == '__main__':
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
 
         # buttons
-        next_button = gpiozero.Button('GPIO17', pull_up=False, bounce_time=0.05)
+        next_button = gpiozero.Button('GPIO17', pull_up=True, bounce_time=0.05)
         next_button.when_pressed = next_channel
 
-        prev_button = gpiozero.Button('GPIO27', pull_up=False, bounce_time=0.05)
+        prev_button = gpiozero.Button('GPIO27', pull_up=True, bounce_time=0.05)
         prev_button.when_pressed = prev_channel
 
         # IR remote

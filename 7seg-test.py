@@ -14,8 +14,8 @@ SEGMENT_PINS = (
 )
 
 DIGIT_PINS = (
-    gpiozero.LED('GPIO20', active_high=False), # DIGIT 1
-    gpiozero.LED('GPIO21', active_high=False)  # DIGIT 2
+    gpiozero.LED('GPIO20'), # DIGIT 1
+    gpiozero.LED('GPIO21')  # DIGIT 2
 )
 
 DIGIT_SEGMENTS = {
