@@ -1,4 +1,3 @@
-get log dump notification to show up on top
 make seven_seg_thread exit cleanly
 
 mythbusters dropping a car from 150ft causes crash
