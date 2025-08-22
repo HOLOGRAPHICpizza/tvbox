@@ -2,6 +2,8 @@
 
 # this is the "0th" file in the tvbox launch chain
 
+source ~/.tvbox.conf
+
 killall python3
 killall feh
 killall lxterminal
@@ -14,5 +16,4 @@ killall -9 lxterminal
 killall -9 tvbox
 killall -9 tvboxlaunchchain2
 
-~/tvbox/tvbox --no-delay
-
+$TVBOX_DIR/tvbox --no-delay

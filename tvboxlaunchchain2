@@ -9,7 +9,7 @@ sleep 2
 wmctrl -r 'tvboxterm' -b add,maximized_vert,maximized_horz
 
 # launch tvbox.py
-python3 ~/tvbox/tvbox.py ~/tvbox_media/channels 2>&1 | tee ~/tvbox/tvbox.log
+python3 "$TVBOX_DIR/tvbox.py" "$TVBOX_CHANNELS_DIR" 2>&1 | tee "$TVBOX_LOG"
 
 # keep the terminal open
 if ps -ef | grep -v grep | grep "bash -i"; then # is bash -i already running?

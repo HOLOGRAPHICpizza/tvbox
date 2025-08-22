@@ -4,6 +4,8 @@
 # can be run directly or by irtvboxlaunch
 # runs tvboxlaunchchain2
 
+source ~/.tvbox.conf
+
 # make sure it's not already running
 if ps -ef | grep -v grep | grep "feh"; then
 	echo "feh already running, abort" >&2
@@ -17,16 +19,16 @@ fi
 
 # splash screen
 if [ "$1" != "--no-delay" ]; then
-	feh -YF ~/tvbox/tvbox-splash.png &
+	feh "$TVBOX_DIR/images/tvbox-splash.png" &
 	# this is to give it a chance to sync the time via NTP. ideally it should have an RTC.
-	sleep 18
+	sleep $TVBOX_SPLASH_DELAY
 	killall feh
 fi
 
 # are we already in a terminal window?
 if [ "$TERM" == "xterm-256color" ]; then
-	~/tvbox/tvboxlaunchchain2
+	$TVBOX_DIR/tvboxlaunchchain2
 else
-	lxterminal -t tvboxterm -e ~/tvbox/tvboxlaunchchain2
+	lxterminal -t tvboxterm -e "$TVBOX_DIR/tvboxlaunchchain2"
 fi
 
