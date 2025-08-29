@@ -15,4 +15,3 @@ if ps -ef | grep -v grep | grep "bash -i"; then # is bash -i already running?
 else
 	bash -i
 fi
-
