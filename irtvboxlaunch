@@ -1,6 +1,8 @@
 #!/usr/bin/bash
 
 # this is the "0th" file in the tvbox launch chain
+# ran by irexec
+# runs tvbox
 
 source ~/.tvbox.conf
 

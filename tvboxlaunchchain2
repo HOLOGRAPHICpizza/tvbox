@@ -1,5 +1,3 @@
-#!/usr/bin/bash
-
 # this is the 2nd file in the tvbox launch chain
 # ran by tvbox
 # runs tvbox.py

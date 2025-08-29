@@ -1,4 +1,8 @@
+# final program in the tvbox launch chain
+# ran by tvboxlaunchchain2
+
 import asyncio
+import json
 import vlc
 import time
 import signal
@@ -8,7 +12,7 @@ import os
 import gpiozero
 import lirc
 
-LAST_CHANNEL_FILE = os.path.expanduser("~/.tvbox")
+CACHE_FILE = os.path.expanduser("~/.tvbox.cache")
 
 SEGMENT_PINS = (
     gpiozero.LED('GPIO26'),       # A
@@ -110,19 +114,18 @@ class TV(object):
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
 
-        #TODO: error handling
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
 
-        #TODO: make this a cmd line arg
         self.vlc_player.set_fullscreen(True)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
 
         self.current_channel_num = channel_num
-        write_last_channel(channel_num)
+        cache['last_channel'] = channel_num
+        write_cache()
         #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
@@ -177,24 +180,6 @@ class TermException(Exception):
 def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
-def read_last_channel():
-    try:
-        with open(LAST_CHANNEL_FILE, 'r') as file:
-            channel = int(file.read())
-            return channel
-    except (OSError, ValueError):
-        print('Could not read ' + LAST_CHANNEL_FILE, flush=True)
-
-    # default to channel 1
-    return 1
-
-def write_last_channel(channel: int):
-    try:
-        with open(LAST_CHANNEL_FILE, 'w') as file:
-            file.write(str(channel))
-    except OSError:
-        print('Could not write ' + LAST_CHANNEL_FILE, flush=True)
-
 def set_segments(numeral: str):
     for segment in range(7):
         if DIGIT_SEGMENTS[numeral][segment]:
@@ -217,7 +202,24 @@ if __name__ == '__main__':
     _event_loop.set_debug(False)
     _event_loop.set_exception_handler(custom_exception_handler)
 
+    # load cache
+    cache = {
+        'last_channel': 1   # default to channel 1
+    }
+    try:
+        with open(CACHE_FILE, 'r') as _file:
+            cache = json.load(_file)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        print('Could not read ' + CACHE_FILE, flush=True)
+
     tv = TV(_event_loop)
+
+    def write_cache():
+        try:
+            with open(CACHE_FILE, 'w') as file:
+                json.dump(cache, file)
+        except OSError:
+            print('Could not write ' + CACHE_FILE, flush=True)
 
     def next_channel():
         print('next channel', flush=True)
@@ -287,7 +289,6 @@ if __name__ == '__main__':
     signal.signal(signal.SIGUSR2, sigusr2_handler)
 
     try:
-        #TODO: load channels in order
         for dirpath, dirnames, files in os.walk(channel_file_dir):
             files.sort()
             for name in files:
@@ -297,7 +298,7 @@ if __name__ == '__main__':
             print('No .channel files found.', file=sys.stderr, flush=True)
             sys.exit(1)
 
-        tv.play_channel(read_last_channel())
+        tv.play_channel(cache['last_channel'])
 
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
