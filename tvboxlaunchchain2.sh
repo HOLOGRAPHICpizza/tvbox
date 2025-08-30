@@ -10,6 +10,7 @@ wmctrl -r 'tvboxterm' -b add,maximized_vert,maximized_horz
 python3 "$TVBOX_DIR/tvbox.py" "$TVBOX_CHANNELS_DIR" 2>&1 | tee "$TVBOX_LOG"
 
 # keep the terminal open
+#TODO: use pgrep and only find our tvbox process
 if ps -ef | grep -v grep | grep "bash -i"; then # is bash -i already running?
 	: # no-op
 else

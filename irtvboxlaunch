@@ -7,16 +7,19 @@
 # shellcheck source=tvbox.conf.example
 source ~/.tvbox.conf
 
-killall python3
-killall feh
-killall lxterminal
-killall tvbox
-killall tvboxlaunchchain2
+#TODO: make sure this actually kills everything, check lircrc too
+#killall python3
+#killall feh
+#killall lxterminal
+#killall tvbox
+#killall tvboxlaunchchain2
+pkill -f '.*tvbox.*'
 sleep 1
-killall -9 python3
-killall -9 feh
-killall -9 lxterminal
-killall -9 tvbox
-killall -9 tvboxlaunchchain2
+pkill -f -9 '.*tvbox.*'
+#killall -9 python3
+#killall -9 feh
+#killall -9 lxterminal
+#killall -9 tvbox
+#killall -9 tvboxlaunchchain2
 
 $TVBOX_DIR/tvbox --no-delay

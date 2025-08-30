@@ -7,7 +7,7 @@ end
 begin
 	prog = irexec
 	button = KEY_0
-	config = killall python3
+	config = pkill -f 'python.*tvbox.*'
 end
 
 begin
@@ -25,6 +25,6 @@ end
 begin
 	prog = irexec
 	button = KEY_9
-	config = killall -9 python3
+	config = pkill -f -9 'python.*tvbox.*'
 end
 
