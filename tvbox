@@ -4,6 +4,7 @@
 # can be run directly or by irtvboxlaunch
 # runs tvboxlaunchchain2.sh
 
+# shellcheck source=tvbox.conf.example
 source ~/.tvbox.conf
 
 # make sure it's not already running
@@ -16,7 +17,6 @@ if ps -ef | grep -v grep | grep "python3"; then
 	exit 1
 fi
 
-
 # splash screen
 if [ "$1" != "--no-delay" ]; then
 	feh "$TVBOX_DIR/images/tvbox-splash.png" &
@@ -27,7 +27,7 @@ fi
 
 # are we already in a terminal window?
 if [ "$TERM" == "xterm-256color" ]; then
-	$TVBOX_DIR/tvboxlaunchchain2
+	bash $TVBOX_DIR/tvboxlaunchchain2.sh
 else
 	lxterminal -t tvboxterm -e "bash $TVBOX_DIR/tvboxlaunchchain2.sh"
 fi

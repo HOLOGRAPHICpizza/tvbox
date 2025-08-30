@@ -4,6 +4,7 @@
 # ran by irexec
 # runs tvbox
 
+# shellcheck source=tvbox.conf.example
 source ~/.tvbox.conf
 
 killall python3

@@ -1,47 +1,80 @@
 # final program in the tvbox launch chain
 # ran by tvboxlaunchchain2
+# don't even think about importing this file
 
+import os
+import sys
 import asyncio
 import json
 import vlc
 import time
 import signal
 import threading
-import sys
-import os
-import gpiozero
 import lirc
 
+# load environment variables
+try:
+    TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
+    TVBOX_GPIO = os.environ['TVBOX_GPIO'] == '1'
+    TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_DELAY'])
+
+    TVBOX_DIR = os.environ['TVBOX_DIR']
+    TVBOX_CHANNELS_DIR = os.environ['TVBOX_CHANNELS_DIR']
+    TVBOX_LOG = os.environ['TVBOX_LOG']
+except (KeyError, ValueError) as _e:
+    print('Environment variables could not be read.', file=sys.stderr, flush=True)
+    print(_e, file=sys.stderr, flush=True)
+    sys.exit(1)
+
+if TVBOX_GPIO:
+    import gpiozero
+
+    SEGMENT_PINS = (
+        gpiozero.LED('GPIO26'), # A
+        gpiozero.LED('GPIO19'), # B
+        gpiozero.LED('GPIO13'), # C
+        gpiozero.LED('GPIO6'),  # D
+        gpiozero.LED('GPIO5'),  # E
+        gpiozero.LED('GPIO11'), # F
+        gpiozero.LED('GPIO9')   # G
+    )
+
+    DIGIT_PINS = (
+        gpiozero.LED('GPIO20'), # DIGIT 1
+        gpiozero.LED('GPIO21')  # DIGIT 2
+    )
+
+    DIGIT_SEGMENTS = {
+        ' ': (False, False, False, False, False, False, False),
+        '0': (True, True, True, True, True, True, False),
+        '1': (False, True, True, False, False, False, False),
+        '2': (True, True, False, True, True, False, True),
+        '3': (True, True, True, True, False, False, True),
+        '4': (False, True, True, False, False, True, True),
+        '5': (True, False, True, True, False, True, True),
+        '6': (True, False, True, True, True, True, True),
+        '7': (True, True, True, False, False, False, False),
+        '8': (True, True, True, True, True, True, True),
+        '9': (True, True, True, True, False, True, True)
+    }
+
+    def set_segments(numeral: str):
+        for segment in range(7):
+            if DIGIT_SEGMENTS[numeral][segment]:
+                SEGMENT_PINS[segment].on()
+            else:
+                SEGMENT_PINS[segment].off()
+
+# load cache
 CACHE_FILE = os.path.expanduser("~/.tvbox.cache")
-
-SEGMENT_PINS = (
-    gpiozero.LED('GPIO26'),       # A
-    gpiozero.LED('GPIO19'),       # B
-    gpiozero.LED('GPIO13'),       # C
-    gpiozero.LED('GPIO6'),        # D
-    gpiozero.LED('GPIO5'),        # E
-    gpiozero.LED('GPIO11'),       # F
-    gpiozero.LED('GPIO9')         # G
-)
-
-DIGIT_PINS = (
-    gpiozero.LED('GPIO20'), # DIGIT 1
-    gpiozero.LED('GPIO21')  # DIGIT 2
-)
-
-DIGIT_SEGMENTS = {
-    ' ':(False,False,False,False,False,False,False),
-    '0':(True,True,True,True,True,True,False),
-    '1':(False,True,True,False,False,False,False),
-    '2':(True,True,False,True,True,False,True),
-    '3':(True,True,True,True,False,False,True),
-    '4':(False,True,True,False,False,True,True),
-    '5':(True,False,True,True,False,True,True),
-    '6':(True,False,True,True,True,True,True),
-    '7':(True,True,True,False,False,False,False),
-    '8':(True,True,True,True,True,True,True),
-    '9':(True,True,True,True,False,True,True)
+cache = {
+    'last_channel': 1   # default to channel 1
 }
+try:
+    with open(CACHE_FILE, 'r') as _file:
+        cache = json.load(_file)
+except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+    print('Could not read ' + CACHE_FILE, flush=True)
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
@@ -118,7 +151,7 @@ class TV(object):
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
 
-        self.vlc_player.set_fullscreen(True)
+        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -180,13 +213,6 @@ class TermException(Exception):
 def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
-def set_segments(numeral: str):
-    for segment in range(7):
-        if DIGIT_SEGMENTS[numeral][segment]:
-            SEGMENT_PINS[segment].on()
-        else:
-            SEGMENT_PINS[segment].off()
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr, flush=True)
@@ -201,16 +227,6 @@ if __name__ == '__main__':
     _event_loop = asyncio.get_event_loop()
     _event_loop.set_debug(False)
     _event_loop.set_exception_handler(custom_exception_handler)
-
-    # load cache
-    cache = {
-        'last_channel': 1   # default to channel 1
-    }
-    try:
-        with open(CACHE_FILE, 'r') as _file:
-            cache = json.load(_file)
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        print('Could not read ' + CACHE_FILE, flush=True)
 
     tv = TV(_event_loop)
 
@@ -246,6 +262,7 @@ if __name__ == '__main__':
         prev_channel()
 
     # next episode
+    # noinspection PyUnusedLocal
     def media_end_handler(event: vlc.Event):
         #print('media_end_handler thread: ' + str(threading.get_ident()))
 
@@ -253,8 +270,8 @@ if __name__ == '__main__':
         tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
 
     def ir_loop():
-        #get IR command
-        #keypress format = (hexcode, repeat_num, command_key, remote_id)
+        # get IR command
+        # keypress format = (hexcode, repeat_num, command_key, remote_id)
         with lirc.RawConnection() as conn:
             while True:
                 keypress = conn.readline() # blocking read
@@ -268,22 +285,23 @@ if __name__ == '__main__':
                     elif command == 'KEY_CHANNELDOWN':
                         prev_channel()
 
-    def seven_seg_loop():
-        first_digit = True
-        while True:
-            num_str = str(tv.current_channel_num).rjust(2, ' ')
+    if TVBOX_GPIO:
+        def seven_seg_loop():
+            first_digit = True
+            while True:
+                num_str = str(tv.current_channel_num).rjust(2, ' ')
 
-            if first_digit:
-                DIGIT_PINS[1].off()
-                set_segments(num_str[-2])
-                DIGIT_PINS[0].on()
-            else:
-                DIGIT_PINS[0].off()
-                set_segments(num_str[-1])
-                DIGIT_PINS[1].on()
+                if first_digit:
+                    DIGIT_PINS[1].off()
+                    set_segments(num_str[-2])
+                    DIGIT_PINS[0].on()
+                else:
+                    DIGIT_PINS[0].off()
+                    set_segments(num_str[-1])
+                    DIGIT_PINS[1].on()
 
-            first_digit = not first_digit
-            time.sleep(0.005)
+                first_digit = not first_digit
+                time.sleep(0.005)
 
     signal.signal(signal.SIGUSR1, sigusr1_handler)
     signal.signal(signal.SIGUSR2, sigusr2_handler)
@@ -303,22 +321,24 @@ if __name__ == '__main__':
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
 
-        # buttons
-        next_button = gpiozero.Button('GPIO17', pull_up=True, bounce_time=0.05)
-        next_button.when_pressed = next_channel
+        if TVBOX_GPIO:
+            # buttons
+            next_button = gpiozero.Button('GPIO17', pull_up=True, bounce_time=0.05)
+            next_button.when_pressed = next_channel
 
-        prev_button = gpiozero.Button('GPIO27', pull_up=True, bounce_time=0.05)
-        prev_button.when_pressed = prev_channel
+            prev_button = gpiozero.Button('GPIO27', pull_up=True, bounce_time=0.05)
+            prev_button.when_pressed = prev_channel
+
+            # 7-segment display
+            # noinspection PyUnboundLocalVariable
+            seven_seg_thread = threading.Thread(group=None, target=seven_seg_loop, name='seven_seg_thread')
+            seven_seg_thread.daemon = True
+            seven_seg_thread.start()
 
         # IR remote
         ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
         ir_thread.daemon = True   # Kills the thread when the program exits
         ir_thread.start()
-
-        # 7-segment display
-        seven_seg_thread = threading.Thread(group=None, target=seven_seg_loop, name='seven_seg_thread')
-        seven_seg_thread.daemon = True
-        seven_seg_thread.start()
 
         tv.event_loop.run_forever()
 
