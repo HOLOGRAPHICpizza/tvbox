@@ -17,6 +17,8 @@ try:
     TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
     TVBOX_GPIO = os.environ['TVBOX_GPIO'] == '1'
     TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_DELAY'])
+    TVBOX_DEBUG = os.environ['TVBOX_DEBUG'] == '1'
+    TVBOX_VAAPI = os.environ['TVBOX_VAAPI'] == '1'
 
     TVBOX_DIR = os.environ['TVBOX_DIR']
     TVBOX_CHANNELS_DIR = os.environ['TVBOX_CHANNELS_DIR']
@@ -148,6 +150,8 @@ class TV(object):
             self.vlc_media_instance.release()
 
         self.vlc_media_instance = self.vlc_instance.media_new(filename)
+        if TVBOX_VAAPI: # need this to work on skylake
+            self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
 
