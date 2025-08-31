@@ -2,5 +2,6 @@
 Type=Application
 Name=tvbox
 Exec=/home/michael/tvbox/tvbox
+Icon=/home/michael/tvbox/images/tvbox-icon.png
 Terminal=false
 

@@ -12,3 +12,5 @@ Originally designed to run on a Raspberry Pi stuffed inside an actual retro cabl
 - python-vlc
 - wmctrl
 - X11
+- libnotify-bin (and a notification daemon)
+

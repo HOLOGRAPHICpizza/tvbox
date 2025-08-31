@@ -3,6 +3,7 @@
 export TVBOX_FULLSCREEN=0                               # enable full-screen mode
 export TVBOX_GPIO=0                                     # enable gpiozero
 export TVBOX_SPLASH_DELAY=3                             # set to something like 18 to give raspi time to get NTP time
+export TVBOX_DEBUG=1
 
 export TVBOX_DIR="$HOME/tvbox"                          # tvbox directory
 export TVBOX_CHANNELS_DIR="$HOME/tvbox_media/channels"  # channels dir

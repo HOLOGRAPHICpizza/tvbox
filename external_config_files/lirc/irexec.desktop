@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
 Name=irexec
-Exec=/usr/bin/irexec -d /home/michael/.config/lircrc
+Exec=/usr/bin/irexec
 Terminal=false
 

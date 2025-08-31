@@ -1,5 +1,4 @@
 make seven_seg_thread exit cleanly
-make lircrc portable
 
 mythbusters dropping a car from 150ft causes crash
 switching from orville S01E01 to TNG S06E20 crashed with too low audio sample freq

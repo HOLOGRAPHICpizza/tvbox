@@ -13,13 +13,13 @@ end
 begin
 	prog = irexec
 	button = KEY_1
-	config = systemd-run --user /home/michael/tvbox/irtvboxlaunch
+	config = systemd-run --user ~/tvbox/irtvboxlaunch
 end
 
 begin
 	prog = irexec
 	button = KEY_2
-	config = tail -n 100 /home/michael/tvbox/tvbox.log > /home/michael/tvbox/log_dumps/`date +%s`.log; logger "tvbox log dumped"; notify-send "tvbox log dumped"
+	config = tail -n 100 ~/tvbox/tvbox.log > ~/tvbox/log_dumps/`date +%s`.log; logger "tvbox log dumped"; notify-send "tvbox log dumped"
 end
 
 begin
