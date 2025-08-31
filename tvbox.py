@@ -154,7 +154,9 @@ class TV(object):
             self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
-
+        
+        # fullscreen often does not take effect on faster computers without delay
+        time.sleep(0.5)
         self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
 
     def play_channel(self, channel_num: int):
