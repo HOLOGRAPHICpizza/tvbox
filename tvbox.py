@@ -10,12 +10,12 @@ import vlc
 import time
 import signal
 import threading
-import lirc
 
 # load environment variables
 try:
     TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
     TVBOX_GPIO = os.environ['TVBOX_GPIO'] == '1'
+    TVBOX_LIRC = os.environ['TVBOX_LIRC'] == '1'
     TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_TIMEOUT'])
     TVBOX_DEBUG = os.environ['TVBOX_DEBUG'] == '1'
     TVBOX_VAAPI = os.environ['TVBOX_VAAPI'] == '1'
@@ -67,11 +67,16 @@ if TVBOX_GPIO:
             else:
                 SEGMENT_PINS[segment].off()
 
+if TVBOX_LIRC:
+    import lirc
+
 # load state
-#TODO: create ~/.local/state/ if necessary
-STATE_FILE = os.path.expanduser("~/.local/state/tvboxstaterc")
 if 'XDG_STATE_HOME' in os.environ:
     STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
+else:
+    _state_dir = os.path.expanduser("~/.local/state/")
+    os.makedirs(_state_dir, exist_ok=True)
+    STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
 
 state = {
     'last_channel': 1   # default to channel 1
@@ -280,21 +285,22 @@ if __name__ == '__main__':
         # python-vlc is not reentrant, we must control vlc from the main thread
         tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
 
-    def ir_loop():
-        # get IR command
-        # keypress format = (hexcode, repeat_num, command_key, remote_id)
-        with lirc.RawConnection() as conn:
-            while True:
-                keypress = conn.readline() # blocking read
-                sequence = keypress.split()[1]
-                command = keypress.split()[2]
+    if TVBOX_LIRC:
+        def ir_loop():
+            # get IR command
+            # keypress format = (hexcode, repeat_num, command_key, remote_id)
+            with lirc.RawConnection() as conn:
+                while True:
+                    keypress = conn.readline() # blocking read
+                    sequence = keypress.split()[1]
+                    command = keypress.split()[2]
 
-                #ignore command repeats
-                if sequence == "00":
-                    if command == 'KEY_CHANNELUP':
-                        next_channel()
-                    elif command == 'KEY_CHANNELDOWN':
-                        prev_channel()
+                    #ignore command repeats
+                    if sequence == "00":
+                        if command == 'KEY_CHANNELUP':
+                            next_channel()
+                        elif command == 'KEY_CHANNELDOWN':
+                            prev_channel()
 
     if TVBOX_GPIO:
         def seven_seg_loop():
@@ -347,9 +353,11 @@ if __name__ == '__main__':
             seven_seg_thread.start()
 
         # IR remote
-        ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
-        ir_thread.daemon = True   # Kills the thread when the program exits
-        ir_thread.start()
+        if TVBOX_LIRC:
+            # noinspection PyUnboundLocalVariable
+            ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
+            ir_thread.daemon = True   # Kills the thread when the program exits
+            ir_thread.start()
 
         tv.event_loop.run_forever()
 
