@@ -67,16 +67,20 @@ if TVBOX_GPIO:
             else:
                 SEGMENT_PINS[segment].off()
 
-# load cache
-CACHE_FILE = os.path.expanduser("~/.tvbox.cache")
-cache = {
+# load state
+STATE_FILE = os.path.expanduser("~/.local/state/tvboxstaterc")
+if 'XDG_STATE_HOME' in os.environ:
+    STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
+
+state = {
     'last_channel': 1   # default to channel 1
 }
 try:
-    with open(CACHE_FILE, 'r') as _file:
-        cache = json.load(_file)
+    with open(STATE_FILE, 'r') as _file:
+        state = json.load(_file)
 except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-    print('Could not read ' + CACHE_FILE, flush=True)
+    print('Could not read ' + STATE_FILE, flush=True)
+
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
@@ -163,8 +167,8 @@ class TV(object):
         assert threading.current_thread() == threading.main_thread()
 
         self.current_channel_num = channel_num
-        cache['last_channel'] = channel_num
-        write_cache()
+        state['last_channel'] = channel_num
+        write_state()
         #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
@@ -236,12 +240,12 @@ if __name__ == '__main__':
 
     tv = TV(_event_loop)
 
-    def write_cache():
+    def write_state():
         try:
-            with open(CACHE_FILE, 'w') as file:
-                json.dump(cache, file)
+            with open(STATE_FILE, 'w') as file:
+                json.dump(state, file)
         except OSError:
-            print('Could not write ' + CACHE_FILE, flush=True)
+            print('Could not write ' + STATE_FILE, flush=True)
 
     def next_channel():
         print('next channel', flush=True)
@@ -322,7 +326,7 @@ if __name__ == '__main__':
             print('No .channel files found.', file=sys.stderr, flush=True)
             sys.exit(1)
 
-        tv.play_channel(cache['last_channel'])
+        tv.play_channel(state['last_channel'])
 
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)

@@ -13,7 +13,7 @@ python3 "$TVBOX_DIR/tvbox.py" "$TVBOX_CHANNELS_DIR" 2>&1 | tee "$TVBOX_LOG"
 if pgrep -f -a "bash -i"; then # is bash -i already running?
 	: # no-op
 else
-	if [ $TVBOX_DEBUG -eq 1 ]; then
+	if [ "$TVBOX_DEBUG" -eq 1 ]; then
 		bash -i
 	fi
 fi

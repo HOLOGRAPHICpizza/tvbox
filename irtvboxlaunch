@@ -5,13 +5,20 @@
 # runs tvbox
 
 # prevent multiple instances
-if [ `pgrep -c irtvboxlaunch` -gt 1 ]; then
-	echo duplicate instance, abort
+if [ $(pgrep -c irtvboxlaunch) -gt 1 ]; then
+	echo "duplicate instance, abort"
 	exit
 fi
 
-# shellcheck source=tvbox.conf.example
-source ~/.tvbox.conf
+if [ -r "$XDG_CONFIG_HOME/tvboxrc" ]; then
+  source "$XDG_CONFIG_HOME/tvboxrc"
+elif [ -r ~/.config/tvboxrc ]; then
+  # shellcheck source=tvboxrc.example
+  source ~/.config/tvboxrc
+else
+  echo "Could not load tvboxrc, abort" >&2
+  exit 1
+fi
 
 pkill -f 'python.*tvbox.*'
 pkill -f 'feh.*tvbox.*'
@@ -25,4 +32,4 @@ pkill -f -9 'lxterminal.*tvbox.*'
 killall -9 tvbox
 killall -9 tvboxlaunchchain2
 
-$TVBOX_DIR/tvbox #--no-delay
+"$TVBOX_DIR/tvbox" #--no-delay
