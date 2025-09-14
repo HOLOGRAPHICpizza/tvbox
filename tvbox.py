@@ -16,7 +16,7 @@ import lirc
 try:
     TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
     TVBOX_GPIO = os.environ['TVBOX_GPIO'] == '1'
-    TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_DELAY'])
+    TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_TIMEOUT'])
     TVBOX_DEBUG = os.environ['TVBOX_DEBUG'] == '1'
     TVBOX_VAAPI = os.environ['TVBOX_VAAPI'] == '1'
 
@@ -68,6 +68,7 @@ if TVBOX_GPIO:
                 SEGMENT_PINS[segment].off()
 
 # load state
+#TODO: create ~/.local/state/ if necessary
 STATE_FILE = os.path.expanduser("~/.local/state/tvboxstaterc")
 if 'XDG_STATE_HOME' in os.environ:
     STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
