@@ -164,15 +164,16 @@ class TV(object):
         self.vlc_player.play()
         
         # fullscreen likes to not take effect
-        #TODO: see if this works on skylake
-        time.sleep(0.1)
-        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
-        time.sleep(0.1)
-        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
-        time.sleep(0.1)
-        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
-        time.sleep(0.1)
-        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
+        #TODO: see if this works on skylake, try without sleep
+        if TVBOX_FULLSCREEN:
+            time.sleep(0.1)
+            self.vlc_player.set_fullscreen(True)
+            time.sleep(0.1)
+            self.vlc_player.set_fullscreen(True)
+            time.sleep(0.1)
+            self.vlc_player.set_fullscreen(True)
+            time.sleep(0.1)
+            self.vlc_player.set_fullscreen(True)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
