@@ -1,13 +1,14 @@
 # $XDG_CONFIG_HOME/tvboxrc
 # or ~/.config/tvboxrc
 
-export TVBOX_FULLSCREEN=0               # enable full-screen mode
-export TVBOX_GPIO=0                     # enable gpiozero (for Raspberry Pi)
-export TVBOX_LIRC=1                     # enable LIRC support
-export TVBOX_SPLASH_TIMEOUT=3           # set to something like 18 to give raspi time to get NTP time
-export TVBOX_DEBUG=1					# leave terminal window open on exit
-export TVBOX_VAAPI=0					# vlc option to make hardware decoding work on Intel i5 skylake graphics
+export TVBOX_FULLSCREEN=1	# enable full-screen mode
+export TVBOX_GPIO=0		# enable gpiozero (for Raspberry Pi)
+export TVBOX_LIRC=1		# enable LIRC support
+export TVBOX_SPLASH_MIN=2	# minimum number of seconds to display splash screen
+export TVBOX_SPLASH_MAX=25	# maximum number of seconds to display splash screen
+export TVBOX_DEBUG=1		# leave terminal window open on exit
+export TVBOX_VAAPI=0		# vlc option to make hardware decoding work on Intel i5 skylake graphics
 
-export TVBOX_DIR="$HOME/tvbox"                          # tvbox directory
-export TVBOX_CHANNELS_DIR="$HOME/tvbox_media/channels"  # channels dir
-export TVBOX_LOG="$TVBOX_DIR/tvbox.log"                 # log file
+export TVBOX_DIR="$HOME/tvbox"				# tvbox directory
+export TVBOX_CHANNELS_DIR="$HOME/tvbox_media/channels"	# channels directory
+export TVBOX_LOG="$TVBOX_DIR/tvbox.log"			# log file

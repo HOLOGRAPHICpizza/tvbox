@@ -16,13 +16,11 @@ try:
     TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
     TVBOX_GPIO = os.environ['TVBOX_GPIO'] == '1'
     TVBOX_LIRC = os.environ['TVBOX_LIRC'] == '1'
-    TVBOX_SPLASH_DELAY = int(os.environ['TVBOX_SPLASH_TIMEOUT'])
     TVBOX_DEBUG = os.environ['TVBOX_DEBUG'] == '1'
     TVBOX_VAAPI = os.environ['TVBOX_VAAPI'] == '1'
 
     TVBOX_DIR = os.environ['TVBOX_DIR']
     TVBOX_CHANNELS_DIR = os.environ['TVBOX_CHANNELS_DIR']
-    TVBOX_LOG = os.environ['TVBOX_LOG']
 except (KeyError, ValueError) as _e:
     print('Environment variables could not be read.', file=sys.stderr, flush=True)
     print(_e, file=sys.stderr, flush=True)
@@ -165,8 +163,15 @@ class TV(object):
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
         
-        # fullscreen often does not take effect on faster computers without delay
-        time.sleep(0.5)
+        # fullscreen likes to not take effect
+        #TODO: see if this works on skylake
+        time.sleep(0.1)
+        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
+        time.sleep(0.1)
+        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
+        time.sleep(0.1)
+        self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
+        time.sleep(0.1)
         self.vlc_player.set_fullscreen(TVBOX_FULLSCREEN)
 
     def play_channel(self, channel_num: int):
