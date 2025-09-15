@@ -28,10 +28,20 @@ fi
 if [ "$1" != "--no-delay" ]; then
 	feh -F "$TVBOX_DIR/images/tvbox-splash.png" &
 	# this is to give the raspi a chance to sync the time via NTP. ideally it should have an RTC.
-	#TODO: make this check for NTP time sync to avoid having to wait the full timeout every time
-	sleep "$TVBOX_SPLASH_TIMEOUT"
+
+  sleep 2
+
+	for (( i=1; i<=TVBOX_SPLASH_TIMEOUT; i++ )); do
+    if timedatectl show --property=NTPSynchronized | grep yes; then
+      break
+    fi
+    sleep 1
+  done
+
 	pkill -f 'feh.*tvbox.*'
 fi
+
+exit
 
 # are we already in a terminal window?
 if [ "$TERM" == "xterm-256color" ]; then
