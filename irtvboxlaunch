@@ -5,10 +5,10 @@
 # runs tvbox
 
 # prevent multiple instances
-if [ $(pgrep -c irtvboxlaunch) -gt 1 ]; then
-	echo "duplicate instance, abort"
-	exit
-fi
+#if [ $(pgrep -c irtvboxlaunch) -gt 1 ]; then
+#	echo "duplicate instance, abort"
+#	exit
+#fi
 
 if [ -r "$XDG_CONFIG_HOME/tvboxrc" ]; then
   source "$XDG_CONFIG_HOME/tvboxrc"

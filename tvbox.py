@@ -152,7 +152,6 @@ class TV(object):
               + ' episode ' + str(self.current_channel().current_episode_num)
               + ' ' + filename, flush=True)
 
-        self.vlc_player.set_fullscreen(False)
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
             self.vlc_media_instance.release()
@@ -162,18 +161,6 @@ class TV(object):
             self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
-        
-        # fullscreen likes to not take effect
-        #TODO: see if this works on skylake, try without sleep
-        if TVBOX_FULLSCREEN:
-            time.sleep(0.1)
-            self.vlc_player.set_fullscreen(True)
-            time.sleep(0.1)
-            self.vlc_player.set_fullscreen(True)
-            time.sleep(0.1)
-            self.vlc_player.set_fullscreen(True)
-            time.sleep(0.1)
-            self.vlc_player.set_fullscreen(True)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -339,10 +326,17 @@ if __name__ == '__main__':
             print('No .channel files found.', file=sys.stderr, flush=True)
             sys.exit(1)
 
+        # start playback
         tv.play_channel(state['last_channel'])
 
+        # media end handler
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
+
+        # set fullscreen
+        for _i in range(10):
+            time.sleep(0.1)
+            tv.vlc_player.set_fullscreen(True)
 
         if TVBOX_GPIO:
             # buttons
