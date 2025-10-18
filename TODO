@@ -1,3 +1,3 @@
 - make seven_seg_thread exit cleanly
-- make lirc optional
-- make splash screen wait for NTP time to sync, until timeout.
+- maybe try to force ntp sync to make splash screen shorter
+

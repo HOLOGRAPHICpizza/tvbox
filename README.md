@@ -4,7 +4,13 @@
 Creates a classic TV-like experience from a collection of your own media.  
 Originally designed to run on a Raspberry Pi stuffed inside an actual retro cable TV box, but should run on any linux machine.
 
-## Dependencies:
+## Hardware:
+
+The tvbox software can be installed on any linux computer, but I want to show off the device I originally made it for.
+
+
+
+## Software Dependencies:
 
 - python-vlc
 - X11 (doesn't work well on wayland)
@@ -17,7 +23,9 @@ Originally designed to run on a Raspberry Pi stuffed inside an actual retro cabl
 - lirc (optional)
 - gpiozero (optional)
 
-## Instructions:
+Probably more. "It works on my machines." lol
+
+## Software Instructions:
 
 - (optional) Get [LIRC](https://www.lirc.org/) working. Some potentially useful files are in `external_config_files/lirc`.
 
