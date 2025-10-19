@@ -189,9 +189,16 @@ class TV(object):
         if TVBOX_VAAPI: # need this to work on skylake
             self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
         self.vlc_player.set_media(self.vlc_media_instance)
+
         self.vlc_player.play()
+
+        self.event_loop.call_later(0.1, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
+
         if TVBOX_FULLSCREEN:
-            self.vlc_player.set_fullscreen(True)
+            _delay = 0.2
+            while _delay <= 2.0:
+                self.event_loop.call_later(_delay, self.event_loop.call_soon_threadsafe, self.vlc_player.set_fullscreen, True)
+                _delay = _delay + 0.2
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -207,7 +214,7 @@ class TV(object):
         # find time in playlist as a whole
         time_in_playlist: int = int(self.current_channel().clock.clocktime() % self.current_channel().length)
         #print('playlist length ' + str(self.current_channel().length))
-        print('time in playlist ' + str(time_in_playlist), flush=True)
+        #print('time in playlist ' + str(time_in_playlist), flush=True)
 
         # determine episode
         episode_num = 1
@@ -312,6 +319,36 @@ if __name__ == '__main__':
     def sigusr2_handler(_signo, _stack_frame):
         prev_channel()
 
+    def pause_toggle():
+        assert threading.current_thread() == threading.main_thread()
+
+        if tv.current_channel().clock.running:
+            print('pause toggle: clock is running, time to pause', flush=True)
+            # pause
+            tv.current_channel().clock.stop()
+            if not 'Paused' in str(tv.vlc_player.get_state()):
+                print('pause toggle: vlc pause toggle', flush=True)
+                tv.vlc_player.pause()
+
+        else:
+            print('pause toggle: clock is not running, time to unpause', flush=True)
+            # unpause
+            tv.current_channel().clock.start()
+            if 'Paused' in str(tv.vlc_player.get_state()):
+                print('pause toggle: vlc pause toggle', flush=True)
+                tv.vlc_player.pause()
+
+        save_state()
+
+    # pause vlc if the channel is supposed to be paused
+    def pause_vlc_maybe():
+        assert threading.current_thread() == threading.main_thread()
+
+        # if supposed to be paused and is not paused
+        if (not tv.current_channel().clock.running) and not 'Paused' in str(tv.vlc_player.get_state()):
+            print('pause maybe? yes', flush=True)
+            tv.vlc_player.pause()
+
     # next episode
     # noinspection PyUnusedLocal
     def media_end_handler(event: vlc.Event):
@@ -336,6 +373,8 @@ if __name__ == '__main__':
                             next_channel()
                         elif command == 'KEY_CHANNELDOWN':
                             prev_channel()
+                        elif command == 'KEY_PAUSE':
+                            tv.event_loop.call_soon_threadsafe(pause_toggle)
 
     if TVBOX_GPIO:
         def seven_seg_loop():
@@ -381,12 +420,6 @@ if __name__ == '__main__':
         # media end handler
         event_manager = tv.vlc_player.event_manager()
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
-
-        # set fullscreen
-        if TVBOX_FULLSCREEN:
-            for _i in range(10):
-                time.sleep(0.1)
-                tv.vlc_player.set_fullscreen(True)
 
         if TVBOX_GPIO:
             # buttons
