@@ -190,6 +190,8 @@ class TV(object):
             self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
         self.vlc_player.set_media(self.vlc_media_instance)
         self.vlc_player.play()
+        if TVBOX_FULLSCREEN:
+            self.vlc_player.set_fullscreen(True)
 
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
@@ -381,9 +383,10 @@ if __name__ == '__main__':
         event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
 
         # set fullscreen
-        for _i in range(10):
-            time.sleep(0.1)
-            tv.vlc_player.set_fullscreen(True)
+        if TVBOX_FULLSCREEN:
+            for _i in range(10):
+                time.sleep(0.1)
+                tv.vlc_player.set_fullscreen(True)
 
         if TVBOX_GPIO:
             # buttons
