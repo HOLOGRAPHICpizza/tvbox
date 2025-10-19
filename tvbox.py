@@ -192,7 +192,8 @@ class TV(object):
 
         self.vlc_player.play()
 
-        self.event_loop.call_later(0.1, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
+        #TODO: make pause delay configurable
+        self.event_loop.call_later(0.8, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
 
         if TVBOX_FULLSCREEN:
             _delay = 0.2
