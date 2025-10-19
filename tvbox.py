@@ -77,7 +77,8 @@ else:
     STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
 
 state = {
-    'last_channel': 1   # default to channel 1
+    'last_channel': 1,   # default to channel 1
+    'channel_clocks': {}
 }
 try:
     with open(STATE_FILE, 'r') as _file:
@@ -85,6 +86,32 @@ try:
 except (OSError, json.JSONDecodeError, UnicodeDecodeError):
     print('Could not read ' + STATE_FILE, flush=True)
 
+
+class Clock(object):
+    offset: int
+    running: bool
+    start_time: int
+
+    def __init__(self, offset: int = 0, running: bool = False, start_time: int = 0):
+        self.offset = offset
+        self.running = running
+        self.start_time = start_time
+
+    def clocktime(self) -> int:
+        if self.running:
+            return self.offset + (int(time.time()) - self.start_time)
+        else:
+            return self.offset
+
+    def start(self):
+        assert self.running == False
+        self.start_time = int(time.time())
+        self.running = True
+
+    def stop(self):
+        assert self.running == True
+        self.offset = self.clocktime()
+        self.running = False
 
 # do not create directly, use Channel.addEpisode
 class Episode(object):
@@ -101,6 +128,7 @@ class Channel(object):
     length: int
     episodes: list[Episode]
     current_episode_num: int
+    clock: Clock
 
     def add_episode(self, filename: str, length: int):
         if len(self.episodes) == 0:
@@ -110,10 +138,11 @@ class Channel(object):
         self.episodes.append(Episode(filename, start_time, length))
         self.length += length
 
-    def __init__(self, channel_file: str):
+    def __init__(self, channel_file: str, clocktime: int, running: bool, start_time: int):
         self.length = 0
         self.episodes = []
         self.current_episode_num = 0
+        self.clock = Clock(clocktime, running, start_time)
 
         # we want shit indexed starting at 1
         self.add_episode('INVALID PLACEHOLDER EPISODE', 0)
@@ -165,15 +194,18 @@ class TV(object):
     def play_channel(self, channel_num: int):
         assert threading.current_thread() == threading.main_thread()
 
+        # set current channel number
         self.current_channel_num = channel_num
-        state['last_channel'] = channel_num
-        write_state()
+
+        # save state
+        save_state()
+
         #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
-        time_in_playlist = int(time.time()) % self.current_channel().length
+        time_in_playlist: int = int(self.current_channel().clock.clocktime() % self.current_channel().length)
         #print('playlist length ' + str(self.current_channel().length))
-        #print('time in playlist ' + str(time_in_playlist))
+        print('time in playlist ' + str(time_in_playlist), flush=True)
 
         # determine episode
         episode_num = 1
@@ -189,7 +221,7 @@ class TV(object):
         self.play_file(self.current_channel().episodes[episode_num].filename)
 
         # find time in episode
-        time_in_episode = time_in_playlist - self.current_channel().episodes[episode_num].start_time
+        time_in_episode: int = time_in_playlist - self.current_channel().episodes[episode_num].start_time
         print('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
               + format(time_in_episode / self.current_channel().episodes[episode_num].length, ".0%")
               + ' - pos in channel ' + format(time_in_playlist / self.current_channel().length, ".0%"), flush=True)
@@ -200,7 +232,7 @@ class TV(object):
     def __init__(self, event_loop: asyncio.AbstractEventLoop):
         self.event_loop = event_loop
         # we want the first channel to be index 1
-        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL')]
+        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
         self.current_channel_num = 1
 
         self.vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
@@ -239,7 +271,15 @@ if __name__ == '__main__':
 
     tv = TV(_event_loop)
 
-    def write_state():
+    def save_state():
+        state['last_channel'] = tv.current_channel_num
+
+        for i in range(1, len(tv.channels)):
+            state['channel_clocks'][str(i)] = (tv.channels[i].clock.offset,
+                                               tv.channels[i].clock.running,
+                                               tv.channels[i].clock.start_time)
+
+        # write the state to disk
         try:
             with open(STATE_FILE, 'w') as file:
                 json.dump(state, file)
@@ -321,7 +361,14 @@ if __name__ == '__main__':
             files.sort()
             for name in files:
                 if name.endswith('.channel'):
-                    tv.add_channel(Channel(os.path.join(dirpath, name)))
+                    # read channel clock from state
+                    _offset = 0
+                    _running = True
+                    _start_time = int(time.time())
+                    if str(len(tv.channels)) in state['channel_clocks']:
+                        _offset, _running, _start_time = state['channel_clocks'][str(len(tv.channels))]
+
+                    tv.add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
         if len(tv.channels) < 2:
             print('No .channel files found.', file=sys.stderr, flush=True)
             sys.exit(1)
