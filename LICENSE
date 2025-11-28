@@ -1,9 +1,12 @@
-Everything in this distribution is copyrighted by the following authors and released under the Creative Commons Attribution-NonCommercial license, with the exception of all image files.
-Honestly I'm not sure about the legality of the images and fonts used in the logo / splash screen. If anyone has a problem with them please contact me and I will take them down.
+Everything except 'makechennel':
+   Copyright (c) Michael Craft / Peak 15 Labs 2025
 
-Copyright (c) Michael Craft / Peak 15 Labs 2025
-Copyright (c) Jason D. Ozubko (jdozubko@gmail.com) 2012,2018
-    (VLC Custom TV Channel Maker - https://addons.videolan.org/p/1154052 - Project inspiration and basis of code for makechannel)
+'makechannel':
+   Copyright (c) Michael Craft / Peak 15 Labs 2025
+   Copyright (c) Jason D. Ozubko (jdozubko@gmail.com) 2012,2018
+      (VLC Custom TV Channel Maker - https://addons.videolan.org/p/1154052)
+
+Released under the following license:
 
 Attribution-NonCommercial 4.0 International
 
