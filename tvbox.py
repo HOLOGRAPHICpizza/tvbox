@@ -11,6 +11,12 @@ import time
 import signal
 import threading
 
+def pwint(_object):
+    print(_object, flush=True)
+
+def pwint_err(_object):
+    print(_object, file=sys.stderr, flush=True)
+
 # load environment variables
 try:
     TVBOX_FULLSCREEN = os.environ['TVBOX_FULLSCREEN'] == '1'
@@ -23,8 +29,8 @@ try:
     TVBOX_CHANNELS_DIR = os.environ['TVBOX_CHANNELS_DIR']
     TVBOX_PAUSE_DELAY = float(os.environ['TVBOX_PAUSE_DELAY'])
 except (KeyError, ValueError) as _e:
-    print('Environment variables could not be read.', file=sys.stderr, flush=True)
-    print(_e, file=sys.stderr, flush=True)
+    pwint_err('Environment variables could not be read.')
+    pwint_err(_e)
     sys.exit(1)
 
 if TVBOX_GPIO:
@@ -85,7 +91,7 @@ try:
     with open(STATE_FILE, 'r') as _file:
         state = json.load(_file)
 except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-    print('Could not read ' + STATE_FILE, flush=True)
+    pwint('Could not read ' + STATE_FILE)
 
 # clock that continues to "run" while the program is not running, relies on accurate system time
 class Clock(object):
@@ -150,7 +156,7 @@ class Channel(object):
         if channel_file == 'INVALID PLACEHOLDER CHANNEL':
             return
 
-        print('reading ' + channel_file, flush=True)
+        pwint('reading ' + channel_file)
 
         # change working directory to location of channel file
         channel_file = os.path.abspath(channel_file)
@@ -178,9 +184,9 @@ class TV(object):
     def play_file(self, filename: str):
         assert threading.current_thread() == threading.main_thread()
 
-        print("\nplaying channel " + str(self.current_channel_num)
+        pwint("\nplaying channel " + str(self.current_channel_num)
               + ' episode ' + str(self.current_channel().current_episode_num)
-              + ' ' + filename, flush=True)
+              + ' ' + filename)
 
         self.vlc_player.stop()
         if self.vlc_media_instance is not None:
@@ -234,9 +240,9 @@ class TV(object):
 
         # find time in episode
         time_in_episode: int = time_in_playlist - self.current_channel().episodes[episode_num].start_time
-        print('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
+        pwint('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
               + format(time_in_episode / self.current_channel().episodes[episode_num].length, ".0%")
-              + ' - pos in channel ' + format(time_in_playlist / self.current_channel().length, ".0%"), flush=True)
+              + ' - pos in channel ' + format(time_in_playlist / self.current_channel().length, ".0%"))
         self.vlc_player.set_time(time_in_episode * 1000)
         #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
         #print('time in episode ' + str(time_in_episode))
@@ -256,7 +262,7 @@ def custom_exception_handler(loop, context):
     loop.default_exception_handler(context)
 
     #exception = context.get('exception')
-    print(context, flush=True)
+    pwint_err(context)
     loop.stop()
     sys.exit(1)
 
@@ -268,12 +274,12 @@ def sigterm_handler(_signo, _stack_frame):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print('Usage: ' + sys.argv[0] + ' channel_file_dir', file=sys.stderr, flush=True)
+        pwint_err('Usage: ' + sys.argv[0] + ' channel_file_dir')
         sys.exit(1)
     channel_file_dir = os.path.abspath(sys.argv[1])
 
     #print('Main thread: ' + str(threading.get_ident()))
-    print('tvbox started', flush=True)
+    pwint('tvbox started')
 
     signal.signal(signal.SIGTERM, sigterm_handler)
 
@@ -296,12 +302,12 @@ if __name__ == '__main__':
         # write the state to disk
         try:
             with open(STATE_FILE, 'w') as file:
-                json.dump(state, file, indent=1)
+                json.dump(state, file, indent=2)
         except OSError:
-            print('Could not write ' + STATE_FILE, flush=True)
+            pwint('Could not write ' + STATE_FILE)
 
     def next_channel():
-        print('next channel', flush=True)
+        pwint('next channel')
         channel_num = tv.current_channel_num + 1
         # tv.channels has a dummy channel, i.e. indexed from 1
         if channel_num == len(tv.channels):
@@ -310,13 +316,16 @@ if __name__ == '__main__':
         tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
     def prev_channel():
-        print('previous channel', flush=True)
+        pwint('previous channel')
         channel_num = tv.current_channel_num - 1
         # tv.channels has a dummy channel, i.e. indexed from 1
         if channel_num == 0:
             # loop around
             channel_num = len(tv.channels) - 1
         tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+
+    def next_episode():
+        pwint('next episode')
 
     def sigusr1_handler(_signo, _stack_frame):
         next_channel()
@@ -328,19 +337,19 @@ if __name__ == '__main__':
         assert threading.current_thread() == threading.main_thread()
 
         if tv.current_channel().clock.running:
-            print('pause toggle: clock is running, time to pause', flush=True)
+            pwint('pause toggle: clock is running, time to pause')
             # pause
             tv.current_channel().clock.stop()
             if not 'Paused' in str(tv.vlc_player.get_state()):
-                print('pause toggle: vlc pause toggle', flush=True)
+                pwint('pause toggle: vlc pause toggle')
                 tv.vlc_player.pause()
 
         else:
-            print('pause toggle: clock is not running, time to unpause', flush=True)
+            pwint('pause toggle: clock is not running, time to unpause')
             # unpause
             tv.current_channel().clock.start()
             if 'Paused' in str(tv.vlc_player.get_state()):
-                print('pause toggle: vlc pause toggle', flush=True)
+                pwint('pause toggle: vlc pause toggle')
                 tv.vlc_player.pause()
 
         save_state()
@@ -351,7 +360,7 @@ if __name__ == '__main__':
 
         # if supposed to be paused and is not paused
         if (not tv.current_channel().clock.running) and not 'Paused' in str(tv.vlc_player.get_state()):
-            print('pause maybe? yes', flush=True)
+            pwint('pause maybe? yes')
             tv.vlc_player.pause()
 
     # next episode
@@ -417,7 +426,7 @@ if __name__ == '__main__':
 
                     tv.add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
         if len(tv.channels) < 2:
-            print('No .channel files found.', file=sys.stderr, flush=True)
+            pwint_err('No .channel files found.')
             sys.exit(1)
 
         # start playback
@@ -451,10 +460,10 @@ if __name__ == '__main__':
         tv.event_loop.run_forever()
 
     except KeyboardInterrupt:
-        print('Caught SIGINT, tvbox exiting.', flush=True)
+        pwint('Caught SIGINT, tvbox exiting.')
 
     except TermException:
-        print('Caught SIGTERM, tvbox exiting.', flush=True)
+        pwint('Caught SIGTERM, tvbox exiting.')
 
     finally:
         # Stop playback and release resources
