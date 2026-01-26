@@ -33,66 +33,6 @@ except (KeyError, ValueError) as _e:
     pwint_err(_e)
     sys.exit(1)
 
-if TVBOX_GPIO:
-    import gpiozero
-
-    SEGMENT_PINS = (
-        gpiozero.LED('GPIO26'), # A
-        gpiozero.LED('GPIO19'), # B
-        gpiozero.LED('GPIO13'), # C
-        gpiozero.LED('GPIO6'),  # D
-        gpiozero.LED('GPIO5'),  # E
-        gpiozero.LED('GPIO11'), # F
-        gpiozero.LED('GPIO9')   # G
-    )
-
-    DIGIT_PINS = (
-        gpiozero.LED('GPIO20'), # DIGIT 1
-        gpiozero.LED('GPIO21')  # DIGIT 2
-    )
-
-    DIGIT_SEGMENTS = {
-        ' ': (False, False, False, False, False, False, False),
-        '0': (True, True, True, True, True, True, False),
-        '1': (False, True, True, False, False, False, False),
-        '2': (True, True, False, True, True, False, True),
-        '3': (True, True, True, True, False, False, True),
-        '4': (False, True, True, False, False, True, True),
-        '5': (True, False, True, True, False, True, True),
-        '6': (True, False, True, True, True, True, True),
-        '7': (True, True, True, False, False, False, False),
-        '8': (True, True, True, True, True, True, True),
-        '9': (True, True, True, True, False, True, True)
-    }
-
-    def set_segments(numeral: str):
-        for segment in range(7):
-            if DIGIT_SEGMENTS[numeral][segment]:
-                SEGMENT_PINS[segment].on()
-            else:
-                SEGMENT_PINS[segment].off()
-
-if TVBOX_LIRC:
-    import lirc
-
-# load state
-if 'XDG_STATE_HOME' in os.environ:
-    STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
-else:
-    _state_dir = os.path.expanduser("~/.local/state/")
-    os.makedirs(_state_dir, exist_ok=True)
-    STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
-
-state = {
-    'last_channel': 1,   # default to channel 1
-    'channel_clocks': {}
-}
-try:
-    with open(STATE_FILE, 'r') as _file:
-        state = json.load(_file)
-except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-    pwint('Could not read ' + STATE_FILE)
-
 # clock that continues to "run" while the program is not running, relies on accurate system time
 class Clock(object):
     offset: int     # the saved up sum of clock times from each time the clock was stopped
@@ -257,6 +197,9 @@ class TV(object):
         self.vlc_player = self.vlc_instance.media_player_new()
         self.vlc_media_instance = None
 
+class TermException(Exception):
+    pass
+
 def custom_exception_handler(loop, context):
     # first, handle with default handler
     loop.default_exception_handler(context)
@@ -266,209 +209,267 @@ def custom_exception_handler(loop, context):
     loop.stop()
     sys.exit(1)
 
-class TermException(Exception):
-    pass
-
 def sigterm_handler(_signo, _stack_frame):
     raise TermException
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        pwint_err('Usage: ' + sys.argv[0] + ' channel_file_dir')
-        sys.exit(1)
-    channel_file_dir = os.path.abspath(sys.argv[1])
+# arguments
+if len(sys.argv) < 2:
+    pwint_err('Usage: ' + sys.argv[0] + ' channel_file_dir')
+    sys.exit(1)
+channel_file_dir = os.path.abspath(sys.argv[1])
 
-    #print('Main thread: ' + str(threading.get_ident()))
-    pwint('tvbox started')
+# load state
+if 'XDG_STATE_HOME' in os.environ:
+    STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
+else:
+    _state_dir = os.path.expanduser("~/.local/state/")
+    os.makedirs(_state_dir, exist_ok=True)
+    STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
 
-    signal.signal(signal.SIGTERM, sigterm_handler)
+state = {
+    'last_channel': 1,   # default to channel 1
+    'channel_clocks': {}
+}
+try:
+    with open(STATE_FILE, 'r') as _file:
+        state = json.load(_file)
+except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+    pwint('Could not read ' + STATE_FILE)
 
-    _event_loop = asyncio.get_event_loop()
-    _event_loop.set_debug(False)
-    _event_loop.set_exception_handler(custom_exception_handler)
+#print('Main thread: ' + str(threading.get_ident()))
+pwint('tvbox started')
 
-    tv = TV(_event_loop)
+# register SIGTERM
+signal.signal(signal.SIGTERM, sigterm_handler)
 
-    # save state to variable and to file
-    # the only time the state should need saving is after pausing or unpausing, and after changing channels
-    def save_state():
-        state['last_channel'] = tv.current_channel_num
+_event_loop = asyncio.get_event_loop()
+_event_loop.set_debug(False)
+_event_loop.set_exception_handler(custom_exception_handler)
 
-        for i in range(1, len(tv.channels)):
-            state['channel_clocks'][str(i)] = (tv.channels[i].clock.offset,
-                                               tv.channels[i].clock.running,
-                                               tv.channels[i].clock.start_time)
+tv = TV(_event_loop)
 
-        # write the state to disk
-        try:
-            with open(STATE_FILE, 'w') as file:
-                json.dump(state, file, indent=2)
-        except OSError:
-            pwint('Could not write ' + STATE_FILE)
+# save state to variable and to file
+# the only time the state should need saving is after pausing or unpausing, and after changing channels
+def save_state():
+    state['last_channel'] = tv.current_channel_num
 
-    def next_channel():
-        pwint('next channel')
-        channel_num = tv.current_channel_num + 1
-        # tv.channels has a dummy channel, i.e. indexed from 1
-        if channel_num == len(tv.channels):
-            # loop around
-            channel_num = 1
-        tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+    for i in range(1, len(tv.channels)):
+        state['channel_clocks'][str(i)] = (tv.channels[i].clock.offset,
+                                           tv.channels[i].clock.running,
+                                           tv.channels[i].clock.start_time)
 
-    def prev_channel():
-        pwint('previous channel')
-        channel_num = tv.current_channel_num - 1
-        # tv.channels has a dummy channel, i.e. indexed from 1
-        if channel_num == 0:
-            # loop around
-            channel_num = len(tv.channels) - 1
-        tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+    # write the state to disk
+    try:
+        with open(STATE_FILE, 'w') as file:
+            json.dump(state, file, indent=2)
+    except OSError:
+        pwint('Could not write ' + STATE_FILE)
 
-    def next_episode():
-        pwint('next episode')
+def next_channel():
+    pwint('next channel')
+    channel_num = tv.current_channel_num + 1
+    # tv.channels has a dummy channel, i.e. indexed from 1
+    if channel_num == len(tv.channels):
+        # loop around
+        channel_num = 1
+    tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
-    def sigusr1_handler(_signo, _stack_frame):
-        next_channel()
+def prev_channel():
+    pwint('previous channel')
+    channel_num = tv.current_channel_num - 1
+    # tv.channels has a dummy channel, i.e. indexed from 1
+    if channel_num == 0:
+        # loop around
+        channel_num = len(tv.channels) - 1
+    tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
-    def sigusr2_handler(_signo, _stack_frame):
-        prev_channel()
+def next_episode():
+    pwint('next episode')
 
-    def pause_toggle():
-        assert threading.current_thread() == threading.main_thread()
+def sigusr1_handler(_signo, _stack_frame):
+    next_channel()
 
-        if tv.current_channel().clock.running:
-            pwint('pause toggle: clock is running, time to pause')
-            # pause
-            tv.current_channel().clock.stop()
-            if not 'Paused' in str(tv.vlc_player.get_state()):
-                pwint('pause toggle: vlc pause toggle')
-                tv.vlc_player.pause()
+def sigusr2_handler(_signo, _stack_frame):
+    prev_channel()
 
-        else:
-            pwint('pause toggle: clock is not running, time to unpause')
-            # unpause
-            tv.current_channel().clock.start()
-            if 'Paused' in str(tv.vlc_player.get_state()):
-                pwint('pause toggle: vlc pause toggle')
-                tv.vlc_player.pause()
+def pause_toggle():
+    assert threading.current_thread() == threading.main_thread()
 
-        save_state()
-
-    # pause vlc if the channel is supposed to be paused and vlc is not paused
-    def pause_vlc_maybe():
-        assert threading.current_thread() == threading.main_thread()
-
-        # if supposed to be paused and is not paused
-        if (not tv.current_channel().clock.running) and not 'Paused' in str(tv.vlc_player.get_state()):
-            pwint('pause maybe? yes')
+    if tv.current_channel().clock.running:
+        pwint('pause toggle: clock is running, time to pause')
+        # pause
+        tv.current_channel().clock.stop()
+        if not 'Paused' in str(tv.vlc_player.get_state()):
+            pwint('pause toggle: vlc pause toggle')
             tv.vlc_player.pause()
 
-    # next episode
-    # noinspection PyUnusedLocal
-    def media_end_handler(event: vlc.Event):
-        #print('media_end_handler thread: ' + str(threading.get_ident()))
+    else:
+        pwint('pause toggle: clock is not running, time to unpause')
+        # unpause
+        tv.current_channel().clock.start()
+        if 'Paused' in str(tv.vlc_player.get_state()):
+            pwint('pause toggle: vlc pause toggle')
+            tv.vlc_player.pause()
 
-        # python-vlc is not reentrant, we must control vlc from the main thread
-        tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
+    save_state()
 
-    if TVBOX_LIRC:
-        def ir_loop():
-            # get IR command
-            # keypress format = (hexcode, repeat_num, command_key, remote_id)
-            with lirc.RawConnection() as conn:
-                while True:
-                    keypress = conn.readline() # blocking read
-                    sequence = keypress.split()[1]
-                    command = keypress.split()[2]
+# pause vlc if the channel is supposed to be paused and vlc is not paused
+def pause_vlc_maybe():
+    assert threading.current_thread() == threading.main_thread()
 
-                    #ignore command repeats
-                    if sequence == "00":
-                        if command == 'KEY_CHANNELUP':
-                            next_channel()
-                        elif command == 'KEY_CHANNELDOWN':
-                            prev_channel()
-                        elif command == 'KEY_PAUSE':
-                            # noinspection PyTypeChecker
-                            tv.event_loop.call_soon_threadsafe(pause_toggle)
+    # if supposed to be paused and is not paused
+    if (not tv.current_channel().clock.running) and not 'Paused' in str(tv.vlc_player.get_state()):
+        pwint('pause maybe? yes')
+        tv.vlc_player.pause()
 
-    if TVBOX_GPIO:
-        def seven_seg_loop():
-            first_digit = True
+# next episode
+# noinspection PyUnusedLocal
+def media_end_handler(event: vlc.Event):
+    #print('media_end_handler thread: ' + str(threading.get_ident()))
+
+    # python-vlc is not reentrant, we must control vlc from the main thread
+    tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
+
+if TVBOX_LIRC:
+    import lirc
+
+    def ir_loop():
+        # get IR command
+        # keypress format = (hexcode, repeat_num, command_key, remote_id)
+        with lirc.RawConnection() as conn:
             while True:
-                num_str = str(tv.current_channel_num).rjust(2, ' ')
+                keypress = conn.readline() # blocking read
+                sequence = keypress.split()[1]
+                command = keypress.split()[2]
 
-                if first_digit:
-                    DIGIT_PINS[1].off()
-                    set_segments(num_str[-2])
-                    DIGIT_PINS[0].on()
-                else:
-                    DIGIT_PINS[0].off()
-                    set_segments(num_str[-1])
-                    DIGIT_PINS[1].on()
+                #ignore command repeats
+                if sequence == "00":
+                    if command == 'KEY_CHANNELUP':
+                        next_channel()
+                    elif command == 'KEY_CHANNELDOWN':
+                        prev_channel()
+                    elif command == 'KEY_PAUSE':
+                        # noinspection PyTypeChecker
+                        tv.event_loop.call_soon_threadsafe(pause_toggle)
 
-                first_digit = not first_digit
-                time.sleep(0.005)
+if TVBOX_GPIO:
+    import gpiozero
 
+    SEGMENT_PINS = (
+        gpiozero.LED('GPIO26'),  # A
+        gpiozero.LED('GPIO19'),  # B
+        gpiozero.LED('GPIO13'),  # C
+        gpiozero.LED('GPIO6'),  # D
+        gpiozero.LED('GPIO5'),  # E
+        gpiozero.LED('GPIO11'),  # F
+        gpiozero.LED('GPIO9')  # G
+    )
+
+    DIGIT_PINS = (
+        gpiozero.LED('GPIO20'),  # DIGIT 1
+        gpiozero.LED('GPIO21')  # DIGIT 2
+    )
+
+    DIGIT_SEGMENTS = {
+        ' ': (False, False, False, False, False, False, False),
+        '0': (True, True, True, True, True, True, False),
+        '1': (False, True, True, False, False, False, False),
+        '2': (True, True, False, True, True, False, True),
+        '3': (True, True, True, True, False, False, True),
+        '4': (False, True, True, False, False, True, True),
+        '5': (True, False, True, True, False, True, True),
+        '6': (True, False, True, True, True, True, True),
+        '7': (True, True, True, False, False, False, False),
+        '8': (True, True, True, True, True, True, True),
+        '9': (True, True, True, True, False, True, True)
+    }
+
+    def set_segments(numeral: str):
+        for segment in range(7):
+            if DIGIT_SEGMENTS[numeral][segment]:
+                SEGMENT_PINS[segment].on()
+            else:
+                SEGMENT_PINS[segment].off()
+
+    def seven_seg_loop():
+        first_digit = True
+        while True:
+            num_str = str(tv.current_channel_num).rjust(2, ' ')
+
+            if first_digit:
+                DIGIT_PINS[1].off()
+                set_segments(num_str[-2])
+                DIGIT_PINS[0].on()
+            else:
+                DIGIT_PINS[0].off()
+                set_segments(num_str[-1])
+                DIGIT_PINS[1].on()
+
+            first_digit = not first_digit
+            time.sleep(0.005)
+
+try:
+    # load channels
+    for dirpath, dirnames, files in os.walk(channel_file_dir):
+        files.sort()
+        for name in files:
+            if name.endswith('.channel'):
+                # read channel clock from state
+                _offset = 0
+                _running = True
+                _start_time = int(time.time())
+                if str(len(tv.channels)) in state['channel_clocks']:
+                    _offset, _running, _start_time = state['channel_clocks'][str(len(tv.channels))]
+
+                tv.add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
+    if len(tv.channels) < 2:
+        pwint_err('No .channel files found.')
+        sys.exit(1)
+
+    # start playback
+    tv.play_channel(state['last_channel'])
+
+    # media end handler
+    event_manager = tv.vlc_player.event_manager()
+    event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
+
+    # register signals
     signal.signal(signal.SIGUSR1, sigusr1_handler)
     signal.signal(signal.SIGUSR2, sigusr2_handler)
 
-    try:
-        for dirpath, dirnames, files in os.walk(channel_file_dir):
-            files.sort()
-            for name in files:
-                if name.endswith('.channel'):
-                    # read channel clock from state
-                    _offset = 0
-                    _running = True
-                    _start_time = int(time.time())
-                    if str(len(tv.channels)) in state['channel_clocks']:
-                        _offset, _running, _start_time = state['channel_clocks'][str(len(tv.channels))]
+    if TVBOX_GPIO:
+        # buttons
+        next_button = gpiozero.Button('GPIO17', pull_up=True, bounce_time=0.05)
+        next_button.when_pressed = next_channel
 
-                    tv.add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
-        if len(tv.channels) < 2:
-            pwint_err('No .channel files found.')
-            sys.exit(1)
+        prev_button = gpiozero.Button('GPIO27', pull_up=True, bounce_time=0.05)
+        prev_button.when_pressed = prev_channel
 
-        # start playback
-        tv.play_channel(state['last_channel'])
+        # 7-segment display
+        # noinspection PyUnboundLocalVariable
+        seven_seg_thread = threading.Thread(group=None, target=seven_seg_loop, name='seven_seg_thread')
+        seven_seg_thread.daemon = True
+        seven_seg_thread.start()
 
-        # media end handler
-        event_manager = tv.vlc_player.event_manager()
-        event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
+    # IR remote
+    if TVBOX_LIRC:
+        # noinspection PyUnboundLocalVariable
+        ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
+        ir_thread.daemon = True   # Kills the thread when the program exits
+        ir_thread.start()
 
-        if TVBOX_GPIO:
-            # buttons
-            next_button = gpiozero.Button('GPIO17', pull_up=True, bounce_time=0.05)
-            next_button.when_pressed = next_channel
+    tv.event_loop.run_forever()
 
-            prev_button = gpiozero.Button('GPIO27', pull_up=True, bounce_time=0.05)
-            prev_button.when_pressed = prev_channel
+except KeyboardInterrupt:
+    pwint('Caught SIGINT, tvbox exiting.')
 
-            # 7-segment display
-            # noinspection PyUnboundLocalVariable
-            seven_seg_thread = threading.Thread(group=None, target=seven_seg_loop, name='seven_seg_thread')
-            seven_seg_thread.daemon = True
-            seven_seg_thread.start()
+except TermException:
+    pwint('Caught SIGTERM, tvbox exiting.')
 
-        # IR remote
-        if TVBOX_LIRC:
-            # noinspection PyUnboundLocalVariable
-            ir_thread = threading.Thread(group=None, target=ir_loop, name='ir_thread')
-            ir_thread.daemon = True   # Kills the thread when the program exits
-            ir_thread.start()
-
-        tv.event_loop.run_forever()
-
-    except KeyboardInterrupt:
-        pwint('Caught SIGINT, tvbox exiting.')
-
-    except TermException:
-        pwint('Caught SIGTERM, tvbox exiting.')
-
-    finally:
-        # Stop playback and release resources
-        tv.vlc_player.stop()
-        if tv.vlc_media_instance is not None:
-            tv.vlc_media_instance.release()
-        tv.vlc_player.release()
-        tv.event_loop.close()
+finally:
+    # Stop playback and release resources
+    tv.vlc_player.stop()
+    if tv.vlc_media_instance is not None:
+        tv.vlc_media_instance.release()
+    tv.vlc_player.release()
+    tv.event_loop.close()
