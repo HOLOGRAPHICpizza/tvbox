@@ -21,6 +21,7 @@ try:
 
     TVBOX_DIR = os.environ['TVBOX_DIR']
     TVBOX_CHANNELS_DIR = os.environ['TVBOX_CHANNELS_DIR']
+    TVBOX_PAUSE_DELAY = float(os.environ['TVBOX_PAUSE_DELAY'])
 except (KeyError, ValueError) as _e:
     print('Environment variables could not be read.', file=sys.stderr, flush=True)
     print(_e, file=sys.stderr, flush=True)
@@ -86,11 +87,11 @@ try:
 except (OSError, json.JSONDecodeError, UnicodeDecodeError):
     print('Could not read ' + STATE_FILE, flush=True)
 
-
+# clock that continues to "run" while the program is not running, relies on accurate system time
 class Clock(object):
-    offset: int
-    running: bool
-    start_time: int
+    offset: int     # the saved up sum of clock times from each time the clock was stopped
+    running: bool   # is the clock currently running
+    start_time: int # unix time of when the clock was started
 
     def __init__(self, offset: int = 0, running: bool = False, start_time: int = 0):
         self.offset = offset
@@ -192,8 +193,9 @@ class TV(object):
 
         self.vlc_player.play()
 
-        #TODO: make pause delay configurable
-        self.event_loop.call_later(0.8, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
+        # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
+        self.event_loop.call_later(TVBOX_PAUSE_DELAY, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
+        self.event_loop.call_later(TVBOX_PAUSE_DELAY + 1.0, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
 
         if TVBOX_FULLSCREEN:
             _delay = 0.2
@@ -281,6 +283,8 @@ if __name__ == '__main__':
 
     tv = TV(_event_loop)
 
+    # save state to variable and to file
+    # the only time the state should need saving is after pausing or unpausing, and after changing channels
     def save_state():
         state['last_channel'] = tv.current_channel_num
 
@@ -292,7 +296,7 @@ if __name__ == '__main__':
         # write the state to disk
         try:
             with open(STATE_FILE, 'w') as file:
-                json.dump(state, file)
+                json.dump(state, file, indent=1)
         except OSError:
             print('Could not write ' + STATE_FILE, flush=True)
 
@@ -341,7 +345,7 @@ if __name__ == '__main__':
 
         save_state()
 
-    # pause vlc if the channel is supposed to be paused
+    # pause vlc if the channel is supposed to be paused and vlc is not paused
     def pause_vlc_maybe():
         assert threading.current_thread() == threading.main_thread()
 
@@ -375,6 +379,7 @@ if __name__ == '__main__':
                         elif command == 'KEY_CHANNELDOWN':
                             prev_channel()
                         elif command == 'KEY_PAUSE':
+                            # noinspection PyTypeChecker
                             tv.event_loop.call_soon_threadsafe(pause_toggle)
 
     if TVBOX_GPIO:
