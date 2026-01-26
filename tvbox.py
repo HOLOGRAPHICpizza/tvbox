@@ -10,6 +10,7 @@ import vlc
 import time
 import signal
 import threading
+import random
 
 def pwint(_object):
     print(_object, flush=True)
@@ -44,11 +45,15 @@ class Clock(object):
         self.running = running
         self.start_time = start_time
 
-    def clocktime(self) -> int:
+    def get_clocktime(self) -> int:
         if self.running:
             return self.offset + (int(time.time()) - self.start_time)
         else:
             return self.offset
+
+    def set_clocktime(self, _clocktime: int):
+        self.offset = _clocktime
+        self.start_time = int(time.time())
 
     def start(self):
         assert self.running == False
@@ -57,7 +62,7 @@ class Clock(object):
 
     def stop(self):
         assert self.running == True
-        self.offset = self.clocktime()
+        self.offset = self.get_clocktime()
         self.running = False
 
 # do not create directly, use Channel.addEpisode
@@ -84,6 +89,9 @@ class Channel(object):
             start_time = self.episodes[-1].start_time + self.episodes[-1].length
         self.episodes.append(Episode(filename, start_time, length))
         self.length += length
+
+    def current_episode(self):
+        return self.episodes[self.current_episode_num]
 
     def __init__(self, channel_file: str, clocktime: int, running: bool, start_time: int):
         self.length = 0
@@ -161,7 +169,7 @@ class TV(object):
         #print('play channel ' + str(channel_num))
 
         # find time in playlist as a whole
-        time_in_playlist: int = int(self.current_channel().clock.clocktime() % self.current_channel().length)
+        time_in_playlist: int = int(self.current_channel().clock.get_clocktime() % self.current_channel().length)
         #print('playlist length ' + str(self.current_channel().length))
         #print('time in playlist ' + str(time_in_playlist), flush=True)
 
@@ -284,7 +292,50 @@ def prev_channel():
     tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
 
 def next_episode():
+    assert threading.current_thread() == threading.main_thread()
     pwint('next episode')
+
+    next_episode_num = tv.current_channel().current_episode_num + 1
+    # check for overflow
+    if next_episode_num == len(tv.current_channel().episodes):
+        next_episode_num = 1
+
+    new_time = tv.current_channel().episodes[next_episode_num].start_time
+
+    # set clock time
+    tv.current_channel().clock.set_clocktime(new_time)
+
+    tv.play_channel(tv.current_channel_num)
+
+def prev_episode():
+    assert threading.current_thread() == threading.main_thread()
+    pwint('previous episode')
+
+    time_in_playlist: int = int(tv.current_channel().clock.get_clocktime() % tv.current_channel().length)
+    ep_start_time = tv.current_channel().current_episode().start_time
+    # if not close to start of episode, seek to start of current episode
+    if time_in_playlist - ep_start_time >= 8:
+        new_time = ep_start_time
+    else:
+        prev_episode_num = tv.current_channel().current_episode_num - 1
+        # check for overflow
+        if prev_episode_num == 0:
+            prev_episode_num = len(tv.current_channel().episodes) - 1
+
+        new_time = tv.current_channel().episodes[prev_episode_num].start_time
+
+    # set clock time
+    tv.current_channel().clock.set_clocktime(new_time)
+
+    tv.play_channel(tv.current_channel_num)
+
+def random_seek():
+    assert threading.current_thread() == threading.main_thread()
+    pwint('seeking to random time in playlist')
+
+    new_time = int(random.randint(1, 31536000) % tv.current_channel().length)
+    tv.current_channel().clock.set_clocktime(new_time)
+    tv.play_channel(tv.current_channel_num)
 
 def sigusr1_handler(_signo, _stack_frame):
     next_channel()
@@ -351,6 +402,15 @@ if TVBOX_LIRC:
                     elif command == 'KEY_PAUSE':
                         # noinspection PyTypeChecker
                         tv.event_loop.call_soon_threadsafe(pause_toggle)
+                    elif command == 'KEY_FASTFORWARD':
+                        # noinspection PyTypeChecker
+                        tv.event_loop.call_soon_threadsafe(next_episode)
+                    elif command == 'KEY_REWIND':
+                        # noinspection PyTypeChecker
+                        tv.event_loop.call_soon_threadsafe(prev_episode)
+                    elif command == 'KEY_5':
+                        # noinspection PyTypeChecker
+                        tv.event_loop.call_soon_threadsafe(random_seek)
 
 if TVBOX_GPIO:
     import gpiozero

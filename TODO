@@ -3,3 +3,5 @@
 - pausing often does not take effect on startup, maybe try to pause multiple times or something - MAYBE FIXED
 - add description to readme about how the experience actually is, how channel surfing works and stuff
 - OSD?
+- makechannel output sorted
+- refactor bunch of stuff into TV class
