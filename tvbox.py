@@ -34,6 +34,30 @@ except (KeyError, ValueError) as _e:
     pwint_err(_e)
     sys.exit(1)
 
+# arguments
+if len(sys.argv) < 2:
+    pwint_err('Usage: ' + sys.argv[0] + ' channel_file_dir')
+    sys.exit(1)
+channel_file_dir = os.path.abspath(sys.argv[1])
+
+# load state
+if 'XDG_STATE_HOME' in os.environ:
+    STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
+else:
+    _state_dir = os.path.expanduser("~/.local/state/")
+    os.makedirs(_state_dir, exist_ok=True)
+    STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
+
+state = {
+    'last_channel': 1,   # default to channel 1
+    'channel_clocks': {}
+}
+try:
+    with open(STATE_FILE, 'r') as _file:
+        state = json.load(_file)
+except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+    pwint('Could not read ' + STATE_FILE)
+
 # clock that continues to "run" while the program is not running, relies on accurate system time
 class Clock(object):
     offset: int     # the saved up sum of clock times from each time the clock was stopped
@@ -116,12 +140,25 @@ class Channel(object):
                     abs_path = os.path.abspath(fields[0])
                     self.add_episode(abs_path, int(fields[1]))
 
+class TermException(Exception):
+    pass
+
 class TV(object):
     event_loop: asyncio.AbstractEventLoop
     channels: list[Channel]
     current_channel_num: int
     vlc_instance: vlc.Instance
     vlc_player: vlc.MediaPlayer
+
+    def __init__(self, event_loop: asyncio.AbstractEventLoop):
+        self.event_loop = event_loop
+        # we want the first channel to be index 1
+        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
+        self.current_channel_num = 1
+
+        self.vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
+        self.vlc_player = self.vlc_instance.media_player_new()
+        self.vlc_media_instance = None
 
     def current_channel(self):
         return self.channels[self.current_channel_num]
@@ -195,19 +232,6 @@ class TV(object):
         #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
         #print('time in episode ' + str(time_in_episode))
 
-    def __init__(self, event_loop: asyncio.AbstractEventLoop):
-        self.event_loop = event_loop
-        # we want the first channel to be index 1
-        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
-        self.current_channel_num = 1
-
-        self.vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
-        self.vlc_player = self.vlc_instance.media_player_new()
-        self.vlc_media_instance = None
-
-class TermException(Exception):
-    pass
-
 def custom_exception_handler(loop, context):
     # first, handle with default handler
     loop.default_exception_handler(context)
@@ -219,30 +243,6 @@ def custom_exception_handler(loop, context):
 
 def sigterm_handler(_signo, _stack_frame):
     raise TermException
-
-# arguments
-if len(sys.argv) < 2:
-    pwint_err('Usage: ' + sys.argv[0] + ' channel_file_dir')
-    sys.exit(1)
-channel_file_dir = os.path.abspath(sys.argv[1])
-
-# load state
-if 'XDG_STATE_HOME' in os.environ:
-    STATE_FILE = os.path.join(os.environ['XDG_STATE_HOME'], 'tvboxstaterc')
-else:
-    _state_dir = os.path.expanduser("~/.local/state/")
-    os.makedirs(_state_dir, exist_ok=True)
-    STATE_FILE = os.path.join(_state_dir, 'tvboxstaterc')
-
-state = {
-    'last_channel': 1,   # default to channel 1
-    'channel_clocks': {}
-}
-try:
-    with open(STATE_FILE, 'r') as _file:
-        state = json.load(_file)
-except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-    pwint('Could not read ' + STATE_FILE)
 
 #print('Main thread: ' + str(threading.get_ident()))
 pwint('tvbox started')
