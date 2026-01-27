@@ -143,94 +143,87 @@ class Channel(object):
 class TermException(Exception):
     pass
 
-class TV(object):
-    event_loop: asyncio.AbstractEventLoop
-    channels: list[Channel]
-    current_channel_num: int
-    vlc_instance: vlc.Instance
-    vlc_player: vlc.MediaPlayer
+# we want the first channel to be index 1
+channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
+current_channel_num: int = 1
 
-    def __init__(self, event_loop: asyncio.AbstractEventLoop):
-        self.event_loop = event_loop
-        # we want the first channel to be index 1
-        self.channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
-        self.current_channel_num = 1
+vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
+vlc_player = vlc_instance.media_player_new()
+vlc_media_instance = None
 
-        self.vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
-        self.vlc_player = self.vlc_instance.media_player_new()
-        self.vlc_media_instance = None
+def current_channel():
+    return channels[current_channel_num]
 
-    def current_channel(self):
-        return self.channels[self.current_channel_num]
+def add_channel(channel: Channel):
+    channels.append(channel)
 
-    def add_channel(self, channel: Channel):
-        self.channels.append(channel)
+def play_file(filename: str):
+    assert threading.current_thread() == threading.main_thread()
 
-    def play_file(self, filename: str):
-        assert threading.current_thread() == threading.main_thread()
+    pwint("\nplaying channel " + str(current_channel_num)
+          + ' episode ' + str(current_channel().current_episode_num)
+          + ' ' + filename)
 
-        pwint("\nplaying channel " + str(self.current_channel_num)
-              + ' episode ' + str(self.current_channel().current_episode_num)
-              + ' ' + filename)
+    vlc_player.stop()
+    global vlc_media_instance
+    if vlc_media_instance is not None:
+        vlc_media_instance.release()
 
-        self.vlc_player.stop()
-        if self.vlc_media_instance is not None:
-            self.vlc_media_instance.release()
+    vlc_media_instance = vlc_instance.media_new(filename)
+    if TVBOX_VAAPI: # need this to work on skylake
+        vlc_media_instance.add_option(':avcodec-hw=vaapi')
+    vlc_player.set_media(vlc_media_instance)
 
-        self.vlc_media_instance = self.vlc_instance.media_new(filename)
-        if TVBOX_VAAPI: # need this to work on skylake
-            self.vlc_media_instance.add_option(':avcodec-hw=vaapi')
-        self.vlc_player.set_media(self.vlc_media_instance)
+    vlc_player.play()
 
-        self.vlc_player.play()
+    # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
+    event_loop.call_later(TVBOX_PAUSE_DELAY, event_loop.call_soon_threadsafe, pause_vlc_maybe)
+    event_loop.call_later(TVBOX_PAUSE_DELAY + 1.0, event_loop.call_soon_threadsafe, pause_vlc_maybe)
 
-        # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
-        self.event_loop.call_later(TVBOX_PAUSE_DELAY, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
-        self.event_loop.call_later(TVBOX_PAUSE_DELAY + 1.0, self.event_loop.call_soon_threadsafe, pause_vlc_maybe)
+    if TVBOX_FULLSCREEN:
+        _delay = 0.2
+        while _delay <= 2.0:
+            event_loop.call_later(_delay, event_loop.call_soon_threadsafe, vlc_player.set_fullscreen, True)
+            _delay = _delay + 0.2
 
-        if TVBOX_FULLSCREEN:
-            _delay = 0.2
-            while _delay <= 2.0:
-                self.event_loop.call_later(_delay, self.event_loop.call_soon_threadsafe, self.vlc_player.set_fullscreen, True)
-                _delay = _delay + 0.2
+def play_channel(channel_num: int):
+    assert threading.current_thread() == threading.main_thread()
 
-    def play_channel(self, channel_num: int):
-        assert threading.current_thread() == threading.main_thread()
+    # set current channel number
+    global current_channel_num
+    current_channel_num = channel_num
 
-        # set current channel number
-        self.current_channel_num = channel_num
+    # save state
+    save_state()
 
-        # save state
-        save_state()
+    #print('play channel ' + str(channel_num))
 
-        #print('play channel ' + str(channel_num))
+    # find time in playlist as a whole
+    time_in_playlist: int = int(current_channel().clock.get_clocktime() % current_channel().length)
+    #print('playlist length ' + str(self.current_channel().length))
+    #print('time in playlist ' + str(time_in_playlist), flush=True)
 
-        # find time in playlist as a whole
-        time_in_playlist: int = int(self.current_channel().clock.get_clocktime() % self.current_channel().length)
-        #print('playlist length ' + str(self.current_channel().length))
-        #print('time in playlist ' + str(time_in_playlist), flush=True)
+    # determine episode
+    episode_num = 1
+    for i in range(len(current_channel().episodes)):
+        e = current_channel().episodes[i]
+        if e.start_time <= time_in_playlist < (e.start_time + e.length):
+            episode_num = i
+            break
+    current_channel().current_episode_num = episode_num
+    #print('episode num ' + str(episode_num))
+    #print('filename ' + self.current_channel().episodes[episode_num].filename)
 
-        # determine episode
-        episode_num = 1
-        for i in range(len(self.current_channel().episodes)):
-            e = self.current_channel().episodes[i]
-            if e.start_time <= time_in_playlist < (e.start_time + e.length):
-                episode_num = i
-                break
-        self.current_channel().current_episode_num = episode_num
-        #print('episode num ' + str(episode_num))
-        #print('filename ' + self.current_channel().episodes[episode_num].filename)
+    play_file(current_channel().episodes[episode_num].filename)
 
-        self.play_file(self.current_channel().episodes[episode_num].filename)
-
-        # find time in episode
-        time_in_episode: int = time_in_playlist - self.current_channel().episodes[episode_num].start_time
-        pwint('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
-              + format(time_in_episode / self.current_channel().episodes[episode_num].length, ".0%")
-              + ' - pos in channel ' + format(time_in_playlist / self.current_channel().length, ".0%"))
-        self.vlc_player.set_time(time_in_episode * 1000)
-        #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
-        #print('time in episode ' + str(time_in_episode))
+    # find time in episode
+    time_in_episode: int = time_in_playlist - current_channel().episodes[episode_num].start_time
+    pwint('seeking to ' + str(time_in_episode) + 'sec - pos in episode '
+          + format(time_in_episode / current_channel().episodes[episode_num].length, ".0%")
+          + ' - pos in channel ' + format(time_in_playlist / current_channel().length, ".0%"))
+    vlc_player.set_time(time_in_episode * 1000)
+    #print('episode length ' + str(self.current_channel().episodes[episode_num].length))
+    #print('time in episode ' + str(time_in_episode))
 
 def custom_exception_handler(loop, context):
     # first, handle with default handler
@@ -250,21 +243,19 @@ pwint('tvbox started')
 # register SIGTERM
 signal.signal(signal.SIGTERM, sigterm_handler)
 
-_event_loop = asyncio.get_event_loop()
-_event_loop.set_debug(False)
-_event_loop.set_exception_handler(custom_exception_handler)
-
-tv = TV(_event_loop)
+event_loop = asyncio.get_event_loop()
+event_loop.set_debug(False)
+event_loop.set_exception_handler(custom_exception_handler)
 
 # save state to variable and to file
 # the only time the state should need saving is after pausing or unpausing, and after changing channels
 def save_state():
-    state['last_channel'] = tv.current_channel_num
+    state['last_channel'] = current_channel_num
 
-    for i in range(1, len(tv.channels)):
-        state['channel_clocks'][str(i)] = (tv.channels[i].clock.offset,
-                                           tv.channels[i].clock.running,
-                                           tv.channels[i].clock.start_time)
+    for i in range(1, len(channels)):
+        state['channel_clocks'][str(i)] = (channels[i].clock.offset,
+                                           channels[i].clock.running,
+                                           channels[i].clock.start_time)
 
     # write the state to disk
     try:
@@ -275,67 +266,67 @@ def save_state():
 
 def next_channel():
     pwint('next channel')
-    channel_num = tv.current_channel_num + 1
-    # tv.channels has a dummy channel, i.e. indexed from 1
-    if channel_num == len(tv.channels):
+    channel_num = current_channel_num + 1
+    # channels has a dummy channel, i.e. indexed from 1
+    if channel_num == len(channels):
         # loop around
         channel_num = 1
-    tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+    event_loop.call_soon_threadsafe(play_channel, channel_num)
 
 def prev_channel():
     pwint('previous channel')
-    channel_num = tv.current_channel_num - 1
-    # tv.channels has a dummy channel, i.e. indexed from 1
+    channel_num = current_channel_num - 1
+    # channels has a dummy channel, i.e. indexed from 1
     if channel_num == 0:
         # loop around
-        channel_num = len(tv.channels) - 1
-    tv.event_loop.call_soon_threadsafe(tv.play_channel, channel_num)
+        channel_num = len(channels) - 1
+    event_loop.call_soon_threadsafe(play_channel, channel_num)
 
 def next_episode():
     assert threading.current_thread() == threading.main_thread()
     pwint('next episode')
 
-    next_episode_num = tv.current_channel().current_episode_num + 1
+    next_episode_num = current_channel().current_episode_num + 1
     # check for overflow
-    if next_episode_num == len(tv.current_channel().episodes):
+    if next_episode_num == len(current_channel().episodes):
         next_episode_num = 1
 
-    new_time = tv.current_channel().episodes[next_episode_num].start_time
+    new_time = current_channel().episodes[next_episode_num].start_time
 
     # set clock time
-    tv.current_channel().clock.set_clocktime(new_time)
+    current_channel().clock.set_clocktime(new_time)
 
-    tv.play_channel(tv.current_channel_num)
+    play_channel(current_channel_num)
 
 def prev_episode():
     assert threading.current_thread() == threading.main_thread()
     pwint('previous episode')
 
-    time_in_playlist: int = int(tv.current_channel().clock.get_clocktime() % tv.current_channel().length)
-    ep_start_time = tv.current_channel().current_episode().start_time
+    time_in_playlist: int = int(current_channel().clock.get_clocktime() % current_channel().length)
+    ep_start_time = current_channel().current_episode().start_time
     # if not close to start of episode, seek to start of current episode
     if time_in_playlist - ep_start_time >= 8:
         new_time = ep_start_time
     else:
-        prev_episode_num = tv.current_channel().current_episode_num - 1
+        prev_episode_num = current_channel().current_episode_num - 1
         # check for overflow
         if prev_episode_num == 0:
-            prev_episode_num = len(tv.current_channel().episodes) - 1
+            prev_episode_num = len(current_channel().episodes) - 1
 
-        new_time = tv.current_channel().episodes[prev_episode_num].start_time
+        new_time = current_channel().episodes[prev_episode_num].start_time
 
     # set clock time
-    tv.current_channel().clock.set_clocktime(new_time)
+    current_channel().clock.set_clocktime(new_time)
 
-    tv.play_channel(tv.current_channel_num)
+    play_channel(current_channel_num)
 
 def random_seek():
     assert threading.current_thread() == threading.main_thread()
     pwint('seeking to random time in playlist')
 
-    new_time = int(random.randint(1, 31536000) % tv.current_channel().length)
-    tv.current_channel().clock.set_clocktime(new_time)
-    tv.play_channel(tv.current_channel_num)
+    new_time = int(random.randint(1, 31536000) % current_channel().length)
+    current_channel().clock.set_clocktime(new_time)
+    play_channel(current_channel_num)
 
 def sigusr1_handler(_signo, _stack_frame):
     next_channel()
@@ -346,21 +337,21 @@ def sigusr2_handler(_signo, _stack_frame):
 def pause_toggle():
     assert threading.current_thread() == threading.main_thread()
 
-    if tv.current_channel().clock.running:
+    if current_channel().clock.running:
         pwint('pause toggle: clock is running, time to pause')
         # pause
-        tv.current_channel().clock.stop()
-        if not 'Paused' in str(tv.vlc_player.get_state()):
+        current_channel().clock.stop()
+        if not 'Paused' in str(vlc_player.get_state()):
             pwint('pause toggle: vlc pause toggle')
-            tv.vlc_player.pause()
+            vlc_player.pause()
 
     else:
         pwint('pause toggle: clock is not running, time to unpause')
         # unpause
-        tv.current_channel().clock.start()
-        if 'Paused' in str(tv.vlc_player.get_state()):
+        current_channel().clock.start()
+        if 'Paused' in str(vlc_player.get_state()):
             pwint('pause toggle: vlc pause toggle')
-            tv.vlc_player.pause()
+            vlc_player.pause()
 
     save_state()
 
@@ -369,9 +360,9 @@ def pause_vlc_maybe():
     assert threading.current_thread() == threading.main_thread()
 
     # if supposed to be paused and is not paused
-    if (not tv.current_channel().clock.running) and not 'Paused' in str(tv.vlc_player.get_state()):
+    if (not current_channel().clock.running) and not 'Paused' in str(vlc_player.get_state()):
         pwint('pause maybe? yes')
-        tv.vlc_player.pause()
+        vlc_player.pause()
 
 # next episode
 # noinspection PyUnusedLocal
@@ -379,7 +370,7 @@ def media_end_handler(event: vlc.Event):
     #print('media_end_handler thread: ' + str(threading.get_ident()))
 
     # python-vlc is not reentrant, we must control vlc from the main thread
-    tv.event_loop.call_soon_threadsafe(tv.play_channel, tv.current_channel_num)
+    event_loop.call_soon_threadsafe(play_channel, current_channel_num)
 
 if TVBOX_LIRC:
     import lirc
@@ -401,16 +392,16 @@ if TVBOX_LIRC:
                         prev_channel()
                     elif command == 'KEY_PAUSE':
                         # noinspection PyTypeChecker
-                        tv.event_loop.call_soon_threadsafe(pause_toggle)
+                        event_loop.call_soon_threadsafe(pause_toggle)
                     elif command == 'KEY_FASTFORWARD':
                         # noinspection PyTypeChecker
-                        tv.event_loop.call_soon_threadsafe(next_episode)
+                        event_loop.call_soon_threadsafe(next_episode)
                     elif command == 'KEY_REWIND':
                         # noinspection PyTypeChecker
-                        tv.event_loop.call_soon_threadsafe(prev_episode)
+                        event_loop.call_soon_threadsafe(prev_episode)
                     elif command == 'KEY_5':
                         # noinspection PyTypeChecker
-                        tv.event_loop.call_soon_threadsafe(random_seek)
+                        event_loop.call_soon_threadsafe(random_seek)
 
 if TVBOX_GPIO:
     import gpiozero
@@ -454,7 +445,7 @@ if TVBOX_GPIO:
     def seven_seg_loop():
         first_digit = True
         while True:
-            num_str = str(tv.current_channel_num).rjust(2, ' ')
+            num_str = str(current_channel_num).rjust(2, ' ')
 
             if first_digit:
                 DIGIT_PINS[1].off()
@@ -478,19 +469,19 @@ try:
                 _offset = 0
                 _running = True
                 _start_time = int(time.time())
-                if str(len(tv.channels)) in state['channel_clocks']:
-                    _offset, _running, _start_time = state['channel_clocks'][str(len(tv.channels))]
+                if str(len(channels)) in state['channel_clocks']:
+                    _offset, _running, _start_time = state['channel_clocks'][str(len(channels))]
 
-                tv.add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
-    if len(tv.channels) < 2:
+                add_channel(Channel(os.path.join(dirpath, name), _offset, _running, _start_time))
+    if len(channels) < 2:
         pwint_err('No .channel files found.')
         sys.exit(1)
 
     # start playback
-    tv.play_channel(state['last_channel'])
+    play_channel(state['last_channel'])
 
     # media end handler
-    event_manager = tv.vlc_player.event_manager()
+    event_manager = vlc_player.event_manager()
     event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, media_end_handler)
 
     # register signals
@@ -518,7 +509,7 @@ try:
         ir_thread.daemon = True   # Kills the thread when the program exits
         ir_thread.start()
 
-    tv.event_loop.run_forever()
+    event_loop.run_forever()
 
 except KeyboardInterrupt:
     pwint('Caught SIGINT, tvbox exiting.')
@@ -528,8 +519,9 @@ except TermException:
 
 finally:
     # Stop playback and release resources
-    tv.vlc_player.stop()
-    if tv.vlc_media_instance is not None:
-        tv.vlc_media_instance.release()
-    tv.vlc_player.release()
-    tv.event_loop.close()
+    vlc_player.stop()
+    if vlc_media_instance is not None:
+        # noinspection PyUnresolvedReferences
+        vlc_media_instance.release()
+    vlc_player.release()
+    event_loop.close()
