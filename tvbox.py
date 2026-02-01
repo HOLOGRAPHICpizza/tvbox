@@ -13,6 +13,8 @@ import threading
 import random
 import re
 
+CLOSE_TO_START_TIME = 8
+
 def pwint(_object):
     print(_object, flush=True)
 
@@ -209,7 +211,7 @@ def play_file(filename: str):
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.X, 10)
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Y, 10)
     vlc_player.video_set_marquee_string(vlc.VideoMarqueeOption.Text, marq_string)
-    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Timeout, 6000)
+    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Timeout, CLOSE_TO_START_TIME * 1000)
 
     # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
     event_loop.call_later(TVBOX_PAUSE_DELAY, event_loop.call_soon_threadsafe, pause_vlc_maybe)
@@ -340,7 +342,7 @@ def prev_episode():
     time_in_playlist: int = int(current_channel().clock.get_clocktime() % current_channel().length)
     ep_start_time = current_channel().current_episode().start_time
     # if not close to start of episode, seek to start of current episode
-    if time_in_playlist - ep_start_time >= 8:
+    if time_in_playlist - ep_start_time >= CLOSE_TO_START_TIME:
         new_time = ep_start_time
     else:
         prev_episode_num = current_channel().current_episode_num - 1
@@ -359,7 +361,7 @@ def random_seek():
     assert threading.current_thread() == threading.main_thread()
     pwint('seeking to random time in playlist')
 
-    new_time = int(random.randint(1, 31536000) % current_channel().length)
+    new_time = random.randint(1, current_channel().length - 1)
     current_channel().clock.set_clocktime(new_time)
     play_channel(current_channel_num)
 
