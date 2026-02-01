@@ -11,6 +11,7 @@ import time
 import signal
 import threading
 import random
+import re
 
 def pwint(_object):
     print(_object, flush=True)
@@ -147,6 +148,7 @@ class TermException(Exception):
 channels = [Channel('INVALID PLACEHOLDER CHANNEL', 0, False, 0)]
 current_channel_num: int = 1
 
+#TODO: option to enable subtitles
 vlc_instance = vlc.Instance('--no-spu') # subtitles disabled
 vlc_player = vlc_instance.media_player_new()
 vlc_media_instance = None
@@ -175,6 +177,36 @@ def play_file(filename: str):
     vlc_player.set_media(vlc_media_instance)
 
     vlc_player.play()
+
+    #TODO: options to configure OSD
+    title = str(current_channel_num)
+    title += '   '
+    title += os.path.splitext(os.path.basename(current_channel().current_episode().filename))[0]
+    title = re.sub(r'\.', ' ', title)
+    title = re.sub(r'[0-9]+p', '', title)
+    title = re.sub(r'(?i)\w*rip\b', '', title)
+    title = re.sub(r'x[0-9][0-9][0-9]', '', title)
+    title = re.sub(r'\[.*]', '', title)
+    title = re.sub(r'-', '', title)
+    title = re.sub(r'HULU', '', title)
+    title = re.sub(r'(?i)webdl', '', title)
+    title = re.sub(r'HETeam', '', title)
+    title = re.sub(r'\(\s*DVD.*\)', '', title)
+    title = re.sub(r'\byoutubevideo\w+', '', title)
+    title = re.sub(r'\(\s*Joy\)', '', title)
+    title = re.sub(r'AAC2.*Oosh', '', title)
+    title = re.sub(r'\bcakes\b', '', title)
+    title = re.sub(r'AC3\s*LESS', '', title)
+    title = re.sub(r'AMZN.*', '', title)
+    title = re.sub(r'NF\s+.*', '', title)
+    title = re.sub(r'sujaidr', '', title)
+    title = re.sub(r'(?i)\(\s*bluray.*', '', title)
+
+    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Enable, 1)
+    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.X, 10)
+    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Y, 10)
+    vlc_player.video_set_marquee_string(vlc.VideoMarqueeOption.Text, title)
+    vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Timeout, 6000)
 
     # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
     event_loop.call_later(TVBOX_PAUSE_DELAY, event_loop.call_soon_threadsafe, pause_vlc_maybe)
