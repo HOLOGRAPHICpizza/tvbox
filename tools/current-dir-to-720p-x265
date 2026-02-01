@@ -3,6 +3,6 @@
 mkdir orig
 
 for file in *.mkv; do
-	ffmpeg -i "$file" -vf scale=-1:720 -c:v libx265 -c:a copy "${file%.*}_720p.mkv"
+	ffmpeg -i "$file" -vf scale=-1:720 -c:v libx265 -c:a aac "${file%.*}_720p.mkv"
 	mv "$file" "orig/$file"
 done

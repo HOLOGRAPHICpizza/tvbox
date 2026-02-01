@@ -179,14 +179,12 @@ def play_file(filename: str):
     vlc_player.play()
 
     #TODO: options to configure OSD
-    title = str(current_channel_num)
-    title += '   '
-    title += os.path.splitext(os.path.basename(current_channel().current_episode().filename))[0]
+    title = os.path.splitext(os.path.basename(current_channel().current_episode().filename))[0]
     title = re.sub(r'\.', ' ', title)
     title = re.sub(r'[0-9]+p', '', title)
     title = re.sub(r'(?i)\w*rip\b', '', title)
     title = re.sub(r'x[0-9][0-9][0-9]', '', title)
-    title = re.sub(r'\[.*]', '', title)
+    title = re.sub(r'\[[^\[\]]*\]', '', title)
     title = re.sub(r'-', '', title)
     title = re.sub(r'HULU', '', title)
     title = re.sub(r'(?i)webdl', '', title)
@@ -201,11 +199,16 @@ def play_file(filename: str):
     title = re.sub(r'NF\s+.*', '', title)
     title = re.sub(r'sujaidr', '', title)
     title = re.sub(r'(?i)\(\s*bluray.*', '', title)
+    title = re.sub(r'(?i)bluray.*', '', title)
+    title = re.sub(r'\([^\(\)]*\)', '', title)
+
+    title = re.sub(r'\s+', ' ', title)
+    marq_string = str(current_channel_num) + '   ' + title
 
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Enable, 1)
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.X, 10)
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Y, 10)
-    vlc_player.video_set_marquee_string(vlc.VideoMarqueeOption.Text, title)
+    vlc_player.video_set_marquee_string(vlc.VideoMarqueeOption.Text, marq_string)
     vlc_player.video_set_marquee_int(vlc.VideoMarqueeOption.Timeout, 6000)
 
     # pause after a delay to make sure it takes effect, then again after 1 sec for good measure
