@@ -219,7 +219,7 @@ def play_file(filename: str):
 
     if TVBOX_FULLSCREEN:
         _delay = 0.2
-        while _delay <= 2.0:
+        while _delay <= 4.0:
             event_loop.call_later(_delay, event_loop.call_soon_threadsafe, vlc_player.set_fullscreen, True)
             _delay = _delay + 0.2
 
