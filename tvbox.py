@@ -449,8 +449,8 @@ if TVBOX_GPIO:
         gpiozero.LED('GPIO13'),  # C
         gpiozero.LED('GPIO6'),  # D
         gpiozero.LED('GPIO5'),  # E
-        gpiozero.LED('GPIO11'),  # F
-        gpiozero.LED('GPIO9')  # G
+        gpiozero.LED('GPIO7'),  # F
+        gpiozero.LED('GPIO8')  # G
     )
 
     DIGIT_PINS = (
