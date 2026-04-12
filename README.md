@@ -24,6 +24,18 @@ I removed the Scientific Atlanta logo by scrubbing with a paste of granulated su
 ![IR receiver](images/readme/ir.jpg)  
 The infrared receiver is a [TSOP98438](https://www.vishay.com/docs/82831/tsop982.pdf) wired directly to the Raspberry Pi, as shown in [this](https://www.digikey.com/en/maker/tutorials/2021/how-to-send-and-receive-ir-signals-with-a-raspberry-pi) guide. The software used to receive the signals is [LIRC](https://www.lirc.org/). Other similar IR receivers can work plugged directly into a USB FTDI cable such as TSOP2338 or TSOP2438, I forget which one, but I am using one of those on a different, non-raspberry-pi machine.
 
+Software timers are used to create the illusion of channels continuing to play in the background or even with the machine switched off. This requires the machine to have accurate time. Since the Raspberry Pi lacks an internal real time clock, I installed a DS3231 I2C RTC module. It had to be installed on an alternate set of pins acting as a GPIO I2C bus since the hardware I2C SCL pin is being used as a power button, and this function can not be reassigned to an alternate pin. Here are my entries in `/boot/firmware/config.txt`:
+```
+# RTC
+dtoverlay=i2c-rtc-gpio,ds3231,i2c_gpio_sda=10,i2c_gpio_scl=9
+
+# power button
+dtoverlay=gpio-shutdown,gpio_pin=3
+
+# IR
+dtoverlay=gpio-ir,gpio_pin=24
+```
+
 ## Software Dependencies:
 
 - python-vlc
