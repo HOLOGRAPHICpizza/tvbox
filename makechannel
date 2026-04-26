@@ -6,9 +6,6 @@
 
 # depends on ffprobe
 
-# somehow get this shit to output in a good, correct order
-# actually just pipe it into sort
-
 import os
 import subprocess
 import sys
