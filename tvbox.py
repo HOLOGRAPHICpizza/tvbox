@@ -499,6 +499,7 @@ if TVBOX_GPIO:
 try:
     # load channels
     for dirpath, dirnames, files in os.walk(channel_file_dir):
+        dirnames.sort()
         files.sort()
         for name in files:
             if name.endswith('.channel'):
