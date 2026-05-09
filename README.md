@@ -53,7 +53,7 @@ Probably more. "It works on my machines." lol
 
 ## Software Instructions:
 
-- (optional) Get [LIRC](https://www.lirc.org/) working. Some potentially useful files are in `external_config_files/lirc`.
+- (optional) Get [LIRC](https://www.lirc.org/) working. Some potentially useful files are in `external_config_files/lirc`. See [my lirc readme file](external_config_files/lirc/README.txt).
 
 
 - Install dependencies.
